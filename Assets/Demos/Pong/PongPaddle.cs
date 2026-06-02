@@ -77,7 +77,7 @@ public class PongPaddle : MonoBehaviour
         float otherHalfPaddleWidth = otherPaddle.PaddleWidth * 0.5f;
 
         float angleDiff = Mathf.DeltaAngle(desiredAngle, otherPaddle.currentAngle);
-        float minDistance = halfPaddleWidth + otherHalfPaddleWidth;
+        float minDistance = PaddleWidth + otherPaddle.PaddleWidth;
 
         return Mathf.Abs(angleDiff) < minDistance;
     }

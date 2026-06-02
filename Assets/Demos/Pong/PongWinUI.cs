@@ -22,8 +22,11 @@ public class PongWinUI : MonoBehaviour
     void Update()
     {
         switch (Ball.State) {
+          case PongBallState.WaitingForServe:
           case PongBallState.Playing:
             Panel.SetActive(false);
+            PlayerLeft.SetActive(false);
+            PlayerRight.SetActive(false);
             break;
           case PongBallState.PlayerLeftWin:
             Panel.SetActive(true);

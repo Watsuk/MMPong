@@ -4,6 +4,7 @@ public enum PongBallState {
   Playing = 0,
   PlayerLeftWin = 1,
   PlayerRightWin = 2,
+  WaitingForServe = 3
 }
 
 public class PongBall : MonoBehaviour
@@ -11,12 +12,16 @@ public class PongBall : MonoBehaviour
     public Color blue = Color.blue;
     public Color red = Color.red;
 
-
     private Renderer balleRenderer;
     public float Speed = 1;
+    private float BaseSpeed;
 
     Vector3 Direction;
-    PongBallState _State = PongBallState.Playing;
+    PongBallState _State = PongBallState.WaitingForServe;
+
+    public int scoreLeft = 0;
+    public int scoreRight = 0;
+    public int winScore = 5;
 
     public PongBallState State {
       get {
@@ -25,6 +30,17 @@ public class PongBall : MonoBehaviour
     } 
 
     void Start() {
+      BaseSpeed = Speed;
+      balleRenderer = GetComponent<Renderer>();
+      ResetBall();
+    }
+
+    public void ResetBall() {
+      transform.position = Vector3.zero;
+      Speed = BaseSpeed;
+      balleRenderer.material.color = Color.white;
+      _State = PongBallState.WaitingForServe;
+      
       Direction = new Vector3(
         Random.Range(0.5f, 1),
         Random.Range(-0.5f, 0.5f),
@@ -32,10 +48,16 @@ public class PongBall : MonoBehaviour
       );
       Direction.x *= Mathf.Sign(Random.Range(-100, 100));
       Direction.Normalize();
-      balleRenderer = GetComponent<Renderer>();
     }
 
     void Update() {
+      if (State == PongBallState.WaitingForServe) {
+          if (Input.GetKeyDown(KeyCode.Space)) {
+              _State = PongBallState.Playing;
+          }
+          return;
+      }
+
       if (State != PongBallState.Playing) {
         return;
       }
@@ -58,13 +80,26 @@ public class PongBall : MonoBehaviour
 
         case "circle":
             if (balleRenderer.material.color == red) {
-                _State = PongBallState.PlayerRightWin;
+                // Red = Right
+                scoreRight++;
+                if (scoreRight >= winScore) {
+                   _State = PongBallState.PlayerRightWin;
+                } else {
+                   ResetBall();
+                }
             } else if (balleRenderer.material.color == blue) {
-                _State = PongBallState.PlayerLeftWin;
-            }
-          break;
-
+                // Blue = Left
+                scoreLeft++;
+                if (scoreLeft >= winScore) {
+                   _State = PongBallState.PlayerLeftWin;
+                } else {
+                   ResetBall();
+                }
+            } else
+                {
+                    ResetBall();
+                }
+                break;
       }
     }
-
 }
