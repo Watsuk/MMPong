@@ -82,9 +82,11 @@ namespace MMPong.Network
             fields = new[]
             {
                 F(s.ballPos.x), F(s.ballPos.y),
-                F(s.paddleY[0]), F(s.paddleY[1]), F(s.paddleY[2]), F(s.paddleY[3]),
-                s.scores[0].ToString(Inv), s.scores[1].ToString(Inv),
-                s.scores[2].ToString(Inv), s.scores[3].ToString(Inv)
+                s.ballOwner.ToString(Inv),
+                ((byte)s.phase).ToString(Inv),
+                s.winner.ToString(Inv),
+                string.Join(ListSep.ToString(), s.paddleAngle.Select(F)),
+                string.Join(ListSep.ToString(), s.scores.Select(v => v.ToString(Inv)))
             }
         };
 
@@ -92,12 +94,15 @@ namespace MMPong.Network
         {
             seq = m.seq,
             ballPos = new Vector2(PF(m.fields[0]), PF(m.fields[1])),
-            paddleY = new[] { PF(m.fields[2]), PF(m.fields[3]), PF(m.fields[4]), PF(m.fields[5]) },
-            scores = new[]
-            {
-                int.Parse(m.fields[6], Inv), int.Parse(m.fields[7], Inv),
-                int.Parse(m.fields[8], Inv), int.Parse(m.fields[9], Inv)
-            }
+            ballOwner = int.Parse(m.fields[2], Inv),
+            phase = (GamePhase)byte.Parse(m.fields[3], Inv),
+            winner = int.Parse(m.fields[4], Inv),
+            paddleAngle = m.fields[5].Length > 0
+                ? m.fields[5].Split(ListSep).Select(PF).ToArray()
+                : Array.Empty<float>(),
+            scores = m.fields[6].Length > 0
+                ? m.fields[6].Split(ListSep).Select(v => int.Parse(v, Inv)).ToArray()
+                : Array.Empty<int>()
         };
 
         /// <summary>Demande de connexion (pseudo nettoyé des séparateurs).</summary>

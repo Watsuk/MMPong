@@ -16,20 +16,28 @@ namespace MMPong.Network
             var (id, dir) = Protocol.ParseInput(Roundtrip(Protocol.BuildInput(1, -1f)));
             Check("Input", id == 1 && Mathf.Approximately(dir, -1f));
 
-            // State
+            // State (jeu circulaire, 2 joueurs)
             var g = new GameState
             {
                 seq = 184,
                 ballPos = new Vector2(2.31f, -0.5f),
-                paddleY = new[] { 1.2f, -3.0f, 0f, 2.5f },
-                scores = new[] { 3, 1, 0, 2 }
+                ballOwner = 1,
+                paddleAngle = new[] { 37.5f, -128.0f },
+                scores = new[] { 3, 1 },
+                phase = GamePhase.GameOver,
+                winner = 0
             };
             var g2 = Protocol.ParseState(Roundtrip(Protocol.BuildState(g)));
             Check("State", g2.seq == 184
                 && Mathf.Approximately(g2.ballPos.x, 2.31f)
                 && Mathf.Approximately(g2.ballPos.y, -0.5f)
-                && Mathf.Approximately(g2.paddleY[1], -3.0f)
-                && g2.scores[0] == 3 && g2.scores[3] == 2);
+                && g2.ballOwner == 1
+                && g2.paddleAngle.Length == 2
+                && Mathf.Approximately(g2.paddleAngle[0], 37.5f)
+                && Mathf.Approximately(g2.paddleAngle[1], -128.0f)
+                && g2.scores[0] == 3 && g2.scores[1] == 1
+                && g2.phase == GamePhase.GameOver
+                && g2.winner == 0);
 
             // Join + nettoyage des séparateurs
             var join = Protocol.ParseJoin(Roundtrip(Protocol.BuildJoin("ali|ce,bob")));
