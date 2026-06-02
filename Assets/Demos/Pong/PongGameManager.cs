@@ -29,6 +29,20 @@ public class PongGameManager : MonoBehaviour
 
     void Start()
     {
+        GameObject outerCircle = GameObject.Find("circle");
+        if (outerCircle != null)
+        {
+            Collider c = outerCircle.GetComponent<Collider>();
+            if (c != null) {
+                float maxRadius = c.bounds.extents.x;
+                CircleRadii = new float[] {
+                    maxRadius * 0.4f,
+                    maxRadius * 0.7f,
+                    maxRadius * 0.95f
+                };
+            }
+        }
+
         InitializeGame();
         CreateCircleVisuals();
     }
