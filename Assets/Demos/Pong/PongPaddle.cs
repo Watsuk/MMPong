@@ -14,6 +14,14 @@ public class PongPaddle : MonoBehaviour
     public float PaddleWidth = 10f;
     public Vector3 CenterPoint = Vector3.zero;
 
+    // Pilotage externe (mode réseau) : quand true, la direction vient de ExternalDirection
+    // au lieu du clavier. Inerte par défaut → le jeu local n'est pas affecté.
+    public bool DrivenExternally = false;
+    public float ExternalDirection = 0f;
+
+    /// <summary>Angle courant du paddle sur le cercle (lu par le serveur).</summary>
+    public float CurrentAngle => currentAngle;
+
     PongInput inputActions;
     InputAction PlayerAction;
 
@@ -27,17 +35,20 @@ public class PongPaddle : MonoBehaviour
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
-        inputActions = new PongInput();
-        switch (Player) {
-          case PongPlayer.PlayerLeft:
-            PlayerAction = inputActions.Pong.Player1;
-            break;
-          case PongPlayer.PlayerRight:
-            PlayerAction = inputActions.Pong.Player2;
-            break;
-        }
+        if (!DrivenExternally)
+        {
+            inputActions = new PongInput();
+            switch (Player) {
+              case PongPlayer.PlayerLeft:
+                PlayerAction = inputActions.Pong.Player1;
+                break;
+              case PongPlayer.PlayerRight:
+                PlayerAction = inputActions.Pong.Player2;
+                break;
+            }
 
-        PlayerAction.Enable();
+            PlayerAction.Enable();
+        }
 
         Renderer r = GetComponent<Renderer>();
         if (r != null) {
@@ -70,7 +81,7 @@ public class PongPaddle : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-      float direction = PlayerAction.ReadValue<float>();
+      float direction = DrivenExternally ? ExternalDirection : PlayerAction.ReadValue<float>();
 
       // Convert linear speed to angular speed: v = r * omega
       float angularSpeedDeg = (Speed / radius) * Mathf.Rad2Deg;
@@ -117,6 +128,6 @@ public class PongPaddle : MonoBehaviour
     }
 
     void OnDisable() {
-      PlayerAction.Disable();
+      if (PlayerAction != null) PlayerAction.Disable();
     }
 }
