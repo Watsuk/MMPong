@@ -52,15 +52,8 @@ public class PongPaddle : MonoBehaviour
       // Convert linear speed to angular speed: v = r * omega
       float angularSpeedDeg = (Speed / radius) * Mathf.Rad2Deg;
 
-      float newAngle = currentAngle;
-      if (Player == PongPlayer.PlayerLeft)
-      {
-          newAngle -= direction * angularSpeedDeg * Time.deltaTime;
-      }
-      else
-      {
-          newAngle += direction * angularSpeedDeg * Time.deltaTime;
-      }
+      // Direction is always counter-clockwise: positive = counter-clockwise, negative = clockwise
+      float newAngle = currentAngle - direction * angularSpeedDeg * Time.deltaTime;
 
       if (!CheckCollisionWithOtherPaddle(newAngle))
       {
