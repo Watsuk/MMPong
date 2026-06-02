@@ -17,7 +17,7 @@ public class PongBall : MonoBehaviour
     private float BaseSpeed;
 
     Vector3 Direction;
-    PongBallState _State = PongBallState.WaitingForServe;
+    PongBallState _State = PongBallState.Playing;
 
     public int scoreLeft = 0;
     public int scoreRight = 0;
