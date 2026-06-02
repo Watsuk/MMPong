@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using System.Collections.Generic;
 
 public enum PongPlayer {
   PlayerLeft = 1,
@@ -20,6 +21,7 @@ public class PongPaddle : MonoBehaviour
     private float radius;
     private float baseAngle;
     private Quaternion baseRotation;
+    private int circleIndex;
 
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
@@ -37,8 +39,29 @@ public class PongPaddle : MonoBehaviour
 
         PlayerAction.Enable();
 
+        Renderer r = GetComponent<Renderer>();
+        if (r != null) {
+            if (Player == PongPlayer.PlayerLeft) {
+                r.material.color = Color.blue;
+            } else if (Player == PongPlayer.PlayerRight) {
+                r.material.color = Color.red;
+            }
+        }
+
         Vector3 offset = transform.position - CenterPoint;
         radius = offset.magnitude;
+        currentAngle = Mathf.Atan2(offset.y, offset.x) * Mathf.Rad2Deg;
+        baseAngle = currentAngle;
+        baseRotation = transform.rotation;
+    }
+
+    public void SetCircle(int index, float newRadius, Vector3 center)
+    {
+        circleIndex = index;
+        radius = newRadius;
+        CenterPoint = center;
+
+        Vector3 offset = transform.position - CenterPoint;
         currentAngle = Mathf.Atan2(offset.y, offset.x) * Mathf.Rad2Deg;
         baseAngle = currentAngle;
         baseRotation = transform.rotation;
@@ -70,28 +93,27 @@ public class PongPaddle : MonoBehaviour
 
     bool CheckCollisionWithOtherPaddle(float desiredAngle)
     {
-        PongPaddle otherPaddle = GetOtherPaddle();
-        if (otherPaddle == null) return false;
+        if (PongGameManager.Instance == null) return false;
 
-        float halfPaddleWidth = PaddleWidth * 0.5f;
-        float otherHalfPaddleWidth = otherPaddle.PaddleWidth * 0.5f;
+        List<PongPaddle> sameCirclePaddles = PongGameManager.Instance.GetPaddlesOnSameCircle(this);
 
-        float angleDiff = Mathf.DeltaAngle(desiredAngle, otherPaddle.currentAngle);
-        float minDistance = PaddleWidth + otherPaddle.PaddleWidth;
-
-        return Mathf.Abs(angleDiff) < minDistance;
-    }
-
-    PongPaddle GetOtherPaddle()
-    {
-        PongPlayer otherPlayer = (Player == PongPlayer.PlayerLeft) ? PongPlayer.PlayerRight : PongPlayer.PlayerLeft;
-        PongPaddle[] allPaddles = FindObjectsByType<PongPaddle>(FindObjectsSortMode.None);
-        foreach (PongPaddle paddle in allPaddles)
+        foreach (PongPaddle otherPaddle in sameCirclePaddles)
         {
-            if (paddle.Player == otherPlayer)
-                return paddle;
+            if (otherPaddle.Player != this.Player)
+            {
+                float halfPaddleWidth = PaddleWidth * 0.5f;
+                float otherHalfPaddleWidth = otherPaddle.PaddleWidth * 0.5f;
+
+                float angleDiff = Mathf.DeltaAngle(desiredAngle, otherPaddle.currentAngle);
+                float minDistance = halfPaddleWidth + otherHalfPaddleWidth;
+
+                if (Mathf.Abs(angleDiff) < minDistance)
+                {
+                    return true;
+                }
+            }
         }
-        return null;
+        return false;
     }
 
     void OnDisable() {

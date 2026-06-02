@@ -17,7 +17,7 @@ public class PongBall : MonoBehaviour
     private float BaseSpeed;
 
     Vector3 Direction;
-    PongBallState _State = PongBallState.WaitingForServe;
+    PongBallState _State = PongBallState.Playing;
 
     public int scoreLeft = 0;
     public int scoreRight = 0;
@@ -35,11 +35,15 @@ public class PongBall : MonoBehaviour
       ResetBall();
     }
 
+    private PongPlayer lastTouchedPlayer;
+    private bool hasTouched = false;
+
     public void ResetBall() {
       transform.position = Vector3.zero;
       Speed = BaseSpeed;
       balleRenderer.material.color = Color.white;
-      _State = PongBallState.WaitingForServe;
+      _State = PongBallState.Playing;
+      hasTouched = false;
       
       Direction = new Vector3(
         Random.Range(0.5f, 1),
@@ -51,13 +55,6 @@ public class PongBall : MonoBehaviour
     }
 
     void Update() {
-      if (State == PongBallState.WaitingForServe) {
-          if (Input.GetKeyDown(KeyCode.Space)) {
-              _State = PongBallState.Playing;
-          }
-          return;
-      }
-
       if (State != PongBallState.Playing) {
         return;
       }
@@ -66,40 +63,40 @@ public class PongBall : MonoBehaviour
     }
 
     void OnCollisionEnter(Collision c) {
-      switch (c.collider.name) {
-        case "PaddleLeft":
-            balleRenderer.material.color = blue;
-            Direction = Vector3.Reflect(Direction, c.contacts[0].normal).normalized;
-            Speed += 0.5f;
-            break;
-        case "PaddleRight":
-            balleRenderer.material.color = red;
-            Direction = Vector3.Reflect(Direction, c.contacts[0].normal).normalized;
-            Speed += 0.5f;
-                break;
+      PongPaddle paddle = c.gameObject.GetComponent<PongPaddle>();
+      if (paddle != null) {
+          lastTouchedPlayer = paddle.Player;
+          hasTouched = true;
 
-        case "circle":
-            if (balleRenderer.material.color == red) {
-                // Red = Right
-                scoreRight++;
-                if (scoreRight >= winScore) {
-                   _State = PongBallState.PlayerRightWin;
-                } else {
-                   ResetBall();
-                }
-            } else if (balleRenderer.material.color == blue) {
-                // Blue = Left
-                scoreLeft++;
-                if (scoreLeft >= winScore) {
-                   _State = PongBallState.PlayerLeftWin;
-                } else {
-                   ResetBall();
-                }
-            } else
-                {
-                    ResetBall();
-                }
-                break;
+          Renderer paddleRenderer = paddle.GetComponent<Renderer>();
+          if (paddleRenderer != null) {
+              balleRenderer.material.color = paddleRenderer.material.color;
+          } else {
+              // Fallback just in case
+              if (paddle.Player == PongPlayer.PlayerLeft) balleRenderer.material.color = blue;
+              else balleRenderer.material.color = red;
+          }
+          
+          if (c.contacts.Length > 0) {
+              Direction = Vector3.Reflect(Direction, c.contacts[0].normal).normalized;
+          } else {
+              Direction = -Direction;
+          }
+          Speed += 0.5f;
+      }
+      else if (c.gameObject.name == "circle") {
+          if (!hasTouched) {
+              ResetBall();
+              return;
+          }
+
+          if (lastTouchedPlayer == PongPlayer.PlayerRight) {
+              _State = PongBallState.PlayerRightWin;
+          } else if (lastTouchedPlayer == PongPlayer.PlayerLeft) {
+              _State = PongBallState.PlayerLeftWin;
+          } else {
+              ResetBall();
+          }
       }
     }
 }
