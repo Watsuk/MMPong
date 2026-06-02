@@ -38,6 +38,15 @@ public class PongPaddle : MonoBehaviour
 
         PlayerAction.Enable();
 
+        Renderer r = GetComponent<Renderer>();
+        if (r != null) {
+            if (Player == PongPlayer.PlayerLeft) {
+                r.material.color = Color.blue;
+            } else if (Player == PongPlayer.PlayerRight) {
+                r.material.color = Color.red;
+            }
+        }
+
         Vector3 offset = transform.position - CenterPoint;
         radius = offset.magnitude;
         currentAngle = Mathf.Atan2(offset.y, offset.x) * Mathf.Rad2Deg;
