@@ -15,8 +15,6 @@ namespace MMPong.Network
         public int listenPort = 25000;
         public int tickRate = 30;
         public float paddleSpeed = 5f;
-        public float minY = -4f;
-        public float maxY = 4f;
 
         const int MaxPlayers = 4;
 
@@ -32,8 +30,11 @@ namespace MMPong.Network
             state = new GameState
             {
                 ballPos = Vector2.zero,
-                paddleY = new float[MaxPlayers],
-                scores = new int[MaxPlayers]
+                ballOwner = -1,
+                paddleAngle = new float[MaxPlayers],
+                scores = new int[MaxPlayers],
+                phase = GamePhase.Playing,
+                winner = -1
             };
 
             transport = GetComponent<UdpTransport>();
@@ -85,11 +86,10 @@ namespace MMPong.Network
 
         void Tick(float dt)
         {
+            // Simulation placeholder (la vraie simulation circulaire arrivera en 2b) :
+            // on fait juste tourner l'angle de chaque paddle selon l'input reçu.
             for (int i = 0; i < MaxPlayers; i++)
-            {
-                state.paddleY[i] = Mathf.Clamp(
-                    state.paddleY[i] + pendingInput[i] * paddleSpeed * dt, minY, maxY);
-            }
+                state.paddleAngle[i] += pendingInput[i] * paddleSpeed * dt;
 
             state.seq = ++tickSeq;
             Broadcast(Protocol.BuildState(state));

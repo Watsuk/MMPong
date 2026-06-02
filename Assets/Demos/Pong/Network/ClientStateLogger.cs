@@ -12,7 +12,7 @@ namespace MMPong.Network
     public class ClientStateLogger : MonoBehaviour
     {
         NetworkClient client;
-        float lastPaddleY;
+        float lastPaddleAngle;
         bool gotState;
         float logTimer;
 
@@ -24,8 +24,8 @@ namespace MMPong.Network
         void OnState(GameState state)
         {
             int id = client.PlayerId;
-            if (id < 0 || id >= state.paddleY.Length) return;
-            lastPaddleY = state.paddleY[id];
+            if (id < 0 || id >= state.paddleAngle.Length) return;
+            lastPaddleAngle = state.paddleAngle[id];
             gotState = true;
         }
 
@@ -35,7 +35,7 @@ namespace MMPong.Network
             if (gotState && logTimer >= 0.5f)
             {
                 logTimer = 0f;
-                Debug.Log($"[ClientStateLogger] mon paddle Y = {lastPaddleY:F2}");
+                Debug.Log($"[ClientStateLogger] mon paddle angle = {lastPaddleAngle:F1}");
             }
         }
     }
