@@ -1,13 +1,49 @@
-/.vscode/
-/Library/
-/obj/
-*.csproj
-*.sln
-/Temp/
+# === Unity generated ===
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
+/[Uu]serSettings/
+
+# === Visual Studio / Rider / VSCode (générés) ===
 /.vs/
-/Log/
-/Logs/
-/Build/
-*.0.2.zip
+/.vscode/
+/.idea/
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# === Builds / packages ===
+*.apk
+*.aab
+*.app
+*.unitypackage
+*.unitypackage.meta
+crashlytics-build.properties
+sysinfo.txt
 *.zip
-/UserSettings/
+
+# === macOS ===
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+
+# === Windows (coéquipiers éventuels) ===
+Thumbs.db
+ehthumbs.db
