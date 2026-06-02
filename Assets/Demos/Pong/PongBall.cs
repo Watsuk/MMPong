@@ -27,7 +27,12 @@ public class PongBall : MonoBehaviour
       get {
         return _State;
       }
-    } 
+    }
+
+    /// <summary>Dernier joueur ayant touché la balle (0 = Left, 1 = Right, -1 = aucun). Lu par le serveur.</summary>
+    public int LastHitter => hasTouched
+        ? (lastTouchedPlayer == PongPlayer.PlayerLeft ? 0 : 1)
+        : -1;
 
     void Start() {
       BaseSpeed = Speed;
