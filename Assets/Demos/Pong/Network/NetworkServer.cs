@@ -5,16 +5,18 @@ using UnityEngine;
 namespace MMPong.Network
 {
     /// <summary>
-    /// Serveur autoritatif (version réseau minimale). Tient le registre des clients,
-    /// reçoit les INPUT, fait avancer un <see cref="GameState"/> à cadence fixe et le
-    /// diffuse à tous. La physique de la balle n'est pas encore branchée (placeholder).
+    /// Serveur autoritatif. Tient le registre des clients, reçoit les INPUT, et à cadence fixe
+    /// délègue à <see cref="ServerGameBridge"/> : applique l'input à la vraie simulation, lit le
+    /// <see cref="GameState"/> résultant et le diffuse à tous.
     /// </summary>
     [RequireComponent(typeof(UdpTransport))]
     public class NetworkServer : MonoBehaviour
     {
         public int listenPort = 25000;
         public int tickRate = 30;
-        public float paddleSpeed = 5f;
+
+        /// <summary>Colle vers la simulation (posée par GameBootstrap). Sans elle, le serveur ne simule rien.</summary>
+        public ServerGameBridge bridge;
 
         const int MaxPlayers = 4;
 
@@ -27,16 +29,6 @@ namespace MMPong.Network
 
         void Start()
         {
-            state = new GameState
-            {
-                ballPos = Vector2.zero,
-                ballOwner = -1,
-                paddleAngle = new float[MaxPlayers],
-                scores = new int[MaxPlayers],
-                phase = GamePhase.Playing,
-                winner = -1
-            };
-
             transport = GetComponent<UdpTransport>();
             transport.OnData += OnData;
             transport.Open(listenPort);
@@ -80,18 +72,15 @@ namespace MMPong.Network
             while (tickTimer >= step)
             {
                 tickTimer -= step;
-                Tick(step);
+                Tick();
             }
         }
 
-        void Tick(float dt)
+        void Tick()
         {
-            // Simulation placeholder (la vraie simulation circulaire arrivera en 2b) :
-            // on fait juste tourner l'angle de chaque paddle selon l'input reçu.
-            for (int i = 0; i < MaxPlayers; i++)
-                state.paddleAngle[i] += pendingInput[i] * paddleSpeed * dt;
-
-            state.seq = ++tickSeq;
+            if (bridge == null) return;
+            bridge.ApplyInput(pendingInput);
+            state = bridge.BuildState(++tickSeq);
             Broadcast(Protocol.BuildState(state));
         }
 
