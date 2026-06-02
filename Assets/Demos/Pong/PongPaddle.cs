@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using System.Collections.Generic;
 
 public enum PongPlayer {
   PlayerLeft = 1,
@@ -92,28 +93,27 @@ public class PongPaddle : MonoBehaviour
 
     bool CheckCollisionWithOtherPaddle(float desiredAngle)
     {
-        PongPaddle otherPaddle = GetOtherPaddle();
-        if (otherPaddle == null) return false;
+        if (PongGameManager.Instance == null) return false;
 
-        float halfPaddleWidth = PaddleWidth * 0.5f;
-        float otherHalfPaddleWidth = otherPaddle.PaddleWidth * 0.5f;
+        List<PongPaddle> sameCirclePaddles = PongGameManager.Instance.GetPaddlesOnSameCircle(this);
 
-        float angleDiff = Mathf.DeltaAngle(desiredAngle, otherPaddle.currentAngle);
-        float minDistance = PaddleWidth + otherPaddle.PaddleWidth;
-
-        return Mathf.Abs(angleDiff) < minDistance;
-    }
-
-    PongPaddle GetOtherPaddle()
-    {
-        PongPlayer otherPlayer = (Player == PongPlayer.PlayerLeft) ? PongPlayer.PlayerRight : PongPlayer.PlayerLeft;
-        PongPaddle[] allPaddles = FindObjectsByType<PongPaddle>(FindObjectsSortMode.None);
-        foreach (PongPaddle paddle in allPaddles)
+        foreach (PongPaddle otherPaddle in sameCirclePaddles)
         {
-            if (paddle.Player == otherPlayer)
-                return paddle;
+            if (otherPaddle.Player != this.Player)
+            {
+                float halfPaddleWidth = PaddleWidth * 0.5f;
+                float otherHalfPaddleWidth = otherPaddle.PaddleWidth * 0.5f;
+
+                float angleDiff = Mathf.DeltaAngle(desiredAngle, otherPaddle.currentAngle);
+                float minDistance = halfPaddleWidth + otherHalfPaddleWidth;
+
+                if (Mathf.Abs(angleDiff) < minDistance)
+                {
+                    return true;
+                }
+            }
         }
-        return null;
+        return false;
     }
 
     void OnDisable() {
