@@ -4,7 +4,7 @@ using System.Collections.Generic;
 public class PongGameManager : MonoBehaviour
 {
     [SerializeField] public float[] CircleRadii = { 5f, 7f, 9f };
-    [SerializeField] public int NumberOfPlayers = 3;
+    [SerializeField] public int NumberOfPlayers = 2;
     public Vector3 CenterPoint = Vector3.zero;
 
     private Dictionary<PongPaddle, int> paddleToCircleIndex = new Dictionary<PongPaddle, int>();
