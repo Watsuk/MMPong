@@ -45,19 +45,16 @@ public class PongBall : MonoBehaviour
 
     void OnCollisionEnter(Collision c) {
       switch (c.collider.name) {
-        case "BoundTop":
-        case "BoundBottom":
-                Direction.y = -Direction.y;
-          break;
-
         case "PaddleLeft":
             balleRenderer.material.color = blue;
-            Direction.x = -Direction.x;
-          break;
+            Direction = Vector3.Reflect(Direction, c.contacts[0].normal).normalized;
+            Speed += 0.5f;
+            break;
         case "PaddleRight":
             balleRenderer.material.color = red;
-            Direction.x = -Direction.x;
-          break;
+            Direction = Vector3.Reflect(Direction, c.contacts[0].normal).normalized;
+            Speed += 0.5f;
+                break;
 
         case "circle":
             if (balleRenderer.material.color == red) {
