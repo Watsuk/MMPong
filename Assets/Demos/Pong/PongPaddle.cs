@@ -20,6 +20,7 @@ public class PongPaddle : MonoBehaviour
     private float radius;
     private float baseAngle;
     private Quaternion baseRotation;
+    private int circleIndex;
 
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
@@ -39,6 +40,18 @@ public class PongPaddle : MonoBehaviour
 
         Vector3 offset = transform.position - CenterPoint;
         radius = offset.magnitude;
+        currentAngle = Mathf.Atan2(offset.y, offset.x) * Mathf.Rad2Deg;
+        baseAngle = currentAngle;
+        baseRotation = transform.rotation;
+    }
+
+    public void SetCircle(int index, float newRadius, Vector3 center)
+    {
+        circleIndex = index;
+        radius = newRadius;
+        CenterPoint = center;
+
+        Vector3 offset = transform.position - CenterPoint;
         currentAngle = Mathf.Atan2(offset.y, offset.x) * Mathf.Rad2Deg;
         baseAngle = currentAngle;
         baseRotation = transform.rotation;
