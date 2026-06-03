@@ -37,6 +37,7 @@ namespace MMPong.Network
                 udp = new UdpClient();
                 udp.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
                 udp.ExclusiveAddressUse = false;
+                DisableUdpConnReset(udp);
                 udp.Client.Bind(new IPEndPoint(IPAddress.Any, listenPort));
                 sourceEndPoint = new IPEndPoint(IPAddress.Any, 0);
                 Debug.Log($"[UdpTransport] Ouvert et à l'écoute sur le port {listenPort}");
@@ -80,10 +81,32 @@ namespace MMPong.Network
                     byte[] data = udp.Receive(ref sourceEndPoint);
                     OnData?.Invoke(data, sourceEndPoint);
                 }
+                catch (SocketException e) when (e.SocketErrorCode == SocketError.ConnectionReset)
+                {
+                    // ICMP « port unreachable » d'un pair injoignable/parti (Windows WSAECONNRESET).
+                    // Sans conséquence en UDP : on ignore et on continue d'écouter.
+                }
                 catch (Exception e)
                 {
                     Debug.LogWarning($"[UdpTransport] Erreur de réception : {e.Message}");
                 }
+            }
+        }
+
+        /// <summary>
+        /// Désactive SIO_UDP_CONNRESET (Windows) : sans ça, un ICMP « port unreachable » d'un pair
+        /// parti fait lever WSAECONNRESET sur la réception suivante et casse la boucle. No-op ailleurs.
+        /// </summary>
+        static void DisableUdpConnReset(UdpClient client)
+        {
+            const int SIO_UDP_CONNRESET = -1744830452; // 0x9800000C
+            try
+            {
+                client.Client.IOControl((IOControlCode)SIO_UDP_CONNRESET, new byte[] { 0, 0, 0, 0 }, null);
+            }
+            catch (Exception)
+            {
+                // IOControl non supporté (macOS/Linux) : le comportement par défaut y est déjà correct.
             }
         }
 

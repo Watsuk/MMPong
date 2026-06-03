@@ -6,17 +6,18 @@ namespace MMPong.Network
     public enum GameMode { Local, Host, Client }
 
     /// <summary>
-    /// Point d'entrée qui décide, au démarrage, si la scène tourne en local ou en réseau.
+    /// Point d'entrée qui décide si la scène tourne en local ou en réseau.
     /// <see cref="GameMode.Local"/> par défaut → jeu local inchangé (rien n'est instancié).
-    /// En Host/Client, la couche réseau est créée <b>par code</b> (aucun objet réseau dans la
-    /// scène, aucun prefab) : la scène locale reste intacte pour les coéquipiers.
+    /// La couche réseau est créée <b>par code</b> (aucun objet réseau dans la scène, aucun prefab)
+    /// via <see cref="StartGame"/>, appelée par le menu d'accueil <c>PongStartUI</c>. Le mode
+    /// (Local / Host / Client) et l'IP du serveur à rejoindre se règlent dans l'inspecteur.
     /// </summary>
     public class GameBootstrap : MonoBehaviour
     {
         public GameMode mode = GameMode.Local;
-        public int listenPort = 25000;
-        public string serverIp = "127.0.0.1";
-        public int clientPort = 26000;
+        public int listenPort = 25000;   // port du serveur (host)
+        public int clientPort = 26000;   // port local du client (≠ serveur pour cohabiter sur une même machine)
+        public string serverIp = "127.0.0.1";  // IP du serveur à rejoindre en mode Client
 
         void Start()
         {
@@ -30,10 +31,10 @@ namespace MMPong.Network
 
             switch (mode)
             {
-                case GameMode.Local: 
+                case GameMode.Local:
                     break;
-                case GameMode.Host: 
-                    SetupHost(pseudo); 
+                case GameMode.Host:
+                    SetupHost(pseudo);
                     break;
                 case GameMode.Client:
                     SetupClient(pseudo);
@@ -60,7 +61,7 @@ namespace MMPong.Network
             var clientGo = new GameObject("NetworkClient (host)");
             clientGo.AddComponent<UdpTransport>();
             var client = clientGo.AddComponent<NetworkClient>();
-            client.serverIp = serverIp;
+            client.serverIp = "127.0.0.1";   // le host rejoint son propre serveur en local
             client.serverPort = listenPort;
             client.listenPort = clientPort;
             client.pseudo = string.IsNullOrEmpty(pseudo) ? "host" : pseudo;
@@ -79,7 +80,7 @@ namespace MMPong.Network
             client.listenPort = clientPort;
             client.pseudo = string.IsNullOrEmpty(pseudo) ? "player" : pseudo;
             clientGo.AddComponent<ClientStateLogger>();
-            
+
             Debug.Log($"[GameBootstrap] Client démarré, connexion à {serverIp}:{listenPort}. Pseudo: {client.pseudo}");
         }
     }

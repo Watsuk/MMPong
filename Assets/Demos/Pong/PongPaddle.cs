@@ -19,8 +19,19 @@ public class PongPaddle : MonoBehaviour
     public bool DrivenExternally = false;
     public float ExternalDirection = 0f;
 
+    // Affichage distant (client) : quand true, le paddle ne se déplace pas seul ; sa position
+    // vient du serveur via ApplyNetworkAngle. Inerte par défaut → jeu local non affecté.
+    public bool RemoteDisplay = false;
+
     /// <summary>Angle courant du paddle sur le cercle (lu par le serveur).</summary>
     public float CurrentAngle => currentAngle;
+
+    /// <summary>Place le paddle à l'angle reçu du serveur (affichage client).</summary>
+    public void ApplyNetworkAngle(float deg)
+    {
+        currentAngle = deg;
+        ApplyTransform();
+    }
 
     PongInput inputActions;
     InputAction PlayerAction;
@@ -81,6 +92,8 @@ public class PongPaddle : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
+      if (RemoteDisplay) return;   // client : position pilotée par ApplyNetworkAngle
+
       float direction = DrivenExternally ? ExternalDirection : PlayerAction.ReadValue<float>();
 
       // Convert linear speed to angular speed: v = r * omega
@@ -94,7 +107,11 @@ public class PongPaddle : MonoBehaviour
           currentAngle = newAngle;
       }
 
-      // Update position and rotation
+      ApplyTransform();
+    }
+
+    void ApplyTransform()
+    {
       float rad = currentAngle * Mathf.Deg2Rad;
       transform.position = CenterPoint + new Vector3(Mathf.Cos(rad), Mathf.Sin(rad), 0) * radius;
 

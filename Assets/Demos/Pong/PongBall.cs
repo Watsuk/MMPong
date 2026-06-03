@@ -24,6 +24,10 @@ public class PongBall : MonoBehaviour
     public int scoreRight = 0;
     public int winScore = 5;
 
+    // Affichage distant (client) : quand true, la balle ne simule pas (position fixée par le
+    // serveur). Inerte par défaut → jeu local non affecté.
+    public bool RemoteDisplay = false;
+
     public PongBallState State {
       get {
         return _State;
@@ -76,7 +80,7 @@ public class PongBall : MonoBehaviour
       }
       
       hasTouched = false;
-      
+
       Direction = new Vector3(
         Random.Range(0.5f, 1),
         Random.Range(-0.5f, 0.5f),
@@ -87,6 +91,8 @@ public class PongBall : MonoBehaviour
     }
 
     void Update() {
+      if (RemoteDisplay) return;   // client : position fixée par le serveur (pas de simulation)
+
       if (State != PongBallState.Playing) {
         return;
       }
