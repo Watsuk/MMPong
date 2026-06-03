@@ -20,20 +20,31 @@ namespace MMPong.Network
 
         void Start()
         {
+            // Do nothing on Start. Wait for the Start Menu UI to call StartGame(pseudo).
+        }
+
+        public void StartGame(string pseudo)
+        {
+            PongBall ball = FindFirstObjectByType<PongBall>();
+            if (ball != null) ball.StartGameFromMenu();
+
             switch (mode)
             {
-                case GameMode.Local: break;            // jeu local normal : ne rien faire
-                case GameMode.Host: SetupHost(); break;
+                case GameMode.Local: 
+                    break;
+                case GameMode.Host: 
+                    SetupHost(pseudo); 
+                    break;
                 case GameMode.Client:
-                    Debug.Log("[GameBootstrap] mode Client : affichage pur (à implémenter en 2c).");
+                    SetupClient(pseudo);
                     break;
             }
         }
 
-        void SetupHost()
+        void SetupHost(string pseudo)
         {
             PongPaddle[] paddles = FindObjectsByType<PongPaddle>(FindObjectsSortMode.None)
-                .OrderBy(p => (int)p.Player)          // PlayerLeft(1) -> index 0, PlayerRight(2) -> index 1
+                .OrderBy(p => (int)p.Player)
                 .ToArray();
             PongBall ball = FindFirstObjectByType<PongBall>();
 
@@ -46,16 +57,30 @@ namespace MMPong.Network
             server.bridge = bridge;
             server.listenPort = listenPort;
 
-            // Joueur host : un client local en loopback (envoie son clavier, reçoit l'état).
             var clientGo = new GameObject("NetworkClient (host)");
             clientGo.AddComponent<UdpTransport>();
             var client = clientGo.AddComponent<NetworkClient>();
             client.serverIp = serverIp;
             client.serverPort = listenPort;
             client.listenPort = clientPort;
+            client.pseudo = string.IsNullOrEmpty(pseudo) ? "host" : pseudo;
             clientGo.AddComponent<ClientStateLogger>();
 
-            Debug.Log($"[GameBootstrap] Host démarré : {paddles.Length} paddle(s), serveur:{listenPort}, client:{clientPort}.");
+            Debug.Log($"[GameBootstrap] Host démarré : {paddles.Length} paddle(s), serveur:{listenPort}, client:{clientPort}. Pseudo: {client.pseudo}");
+        }
+
+        void SetupClient(string pseudo)
+        {
+            var clientGo = new GameObject("NetworkClient");
+            clientGo.AddComponent<UdpTransport>();
+            var client = clientGo.AddComponent<NetworkClient>();
+            client.serverIp = serverIp;
+            client.serverPort = listenPort;
+            client.listenPort = clientPort;
+            client.pseudo = string.IsNullOrEmpty(pseudo) ? "player" : pseudo;
+            clientGo.AddComponent<ClientStateLogger>();
+            
+            Debug.Log($"[GameBootstrap] Client démarré, connexion à {serverIp}:{listenPort}. Pseudo: {client.pseudo}");
         }
     }
 }
