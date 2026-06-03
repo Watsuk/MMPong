@@ -6,34 +6,33 @@ namespace MMPong.Network
     public enum GameMode { Local, Host, Client }
 
     /// <summary>
-    /// Point d'entrée qui décide, au démarrage, si la scène tourne en local ou en réseau.
+    /// Point d'entrée qui décide si la scène tourne en local ou en réseau.
     /// <see cref="GameMode.Local"/> par défaut → jeu local inchangé (rien n'est instancié).
-    /// En Host/Client, la couche réseau est créée <b>par code</b> (aucun objet réseau dans la
-    /// scène, aucun prefab) : la scène locale reste intacte pour les coéquipiers.
+    /// La couche réseau est créée <b>par code</b> (aucun objet réseau dans la scène, aucun prefab)
+    /// via <see cref="StartHost"/> / <see cref="StartClient"/> — appelables par l'inspecteur (mode),
+    /// par le futur menu, ou par le lanceur de dev <see cref="DevNetLauncher"/>.
     /// </summary>
     public class GameBootstrap : MonoBehaviour
     {
         public GameMode mode = GameMode.Local;
         public int listenPort = 25000;
         public string serverIp = "127.0.0.1";
-        public int clientPort = 26000;
 
         void Start()
         {
             switch (mode)
             {
-                case GameMode.Local: break;            // jeu local normal : ne rien faire
-                case GameMode.Host: SetupHost(); break;
-                case GameMode.Client:
-                    Debug.Log("[GameBootstrap] mode Client : affichage pur (à implémenter en 2c).");
-                    break;
+                case GameMode.Local: break;                 // jeu local normal : ne rien faire
+                case GameMode.Host: StartHost(); break;
+                case GameMode.Client: StartClient(serverIp); break;
             }
         }
 
-        void SetupHost()
+        /// <summary>Démarre le serveur autoritatif + un client local (joueur host).</summary>
+        public void StartHost()
         {
             PongPaddle[] paddles = FindObjectsByType<PongPaddle>(FindObjectsSortMode.None)
-                .OrderBy(p => (int)p.Player)          // PlayerLeft(1) -> index 0, PlayerRight(2) -> index 1
+                .OrderBy(p => (int)p.Player)            // PlayerLeft(1) -> index 0, PlayerRight(2) -> index 1
                 .ToArray();
             PongBall ball = FindFirstObjectByType<PongBall>();
 
@@ -46,16 +45,31 @@ namespace MMPong.Network
             server.bridge = bridge;
             server.listenPort = listenPort;
 
-            // Joueur host : un client local en loopback (envoie son clavier, reçoit l'état).
-            var clientGo = new GameObject("NetworkClient (host)");
+            SpawnClient(serverIp, applyState: false);   // joueur host : envoie l'input, affiche sa propre sim
+            Debug.Log($"[GameBootstrap] Host démarré : {paddles.Length} paddle(s), serveur:{listenPort}.");
+        }
+
+        /// <summary>Rejoint un serveur : passe la scène en affichage pur et crée le client.</summary>
+        public void StartClient(string ip)
+        {
+            foreach (var p in FindObjectsByType<PongPaddle>(FindObjectsSortMode.None))
+                p.RemoteDisplay = true;
+            var ball = FindFirstObjectByType<PongBall>();
+            if (ball != null) ball.RemoteDisplay = true;
+
+            SpawnClient(ip, applyState: true);
+            Debug.Log($"[GameBootstrap] Client démarré → serveur {ip}:{listenPort}.");
+        }
+
+        void SpawnClient(string ip, bool applyState)
+        {
+            var clientGo = new GameObject("NetworkClient");
             clientGo.AddComponent<UdpTransport>();
             var client = clientGo.AddComponent<NetworkClient>();
-            client.serverIp = serverIp;
+            client.serverIp = ip;
             client.serverPort = listenPort;
-            client.listenPort = clientPort;
-            clientGo.AddComponent<ClientStateLogger>();
-
-            Debug.Log($"[GameBootstrap] Host démarré : {paddles.Length} paddle(s), serveur:{listenPort}, client:{clientPort}.");
+            client.listenPort = 0;   // port éphémère : aucun conflit si 2 instances sur la même machine
+            if (applyState) clientGo.AddComponent<ClientStateApplier>();
         }
     }
 }
