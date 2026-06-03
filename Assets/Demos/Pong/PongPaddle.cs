@@ -121,23 +121,23 @@ public class PongPaddle : MonoBehaviour
 
     bool CheckCollisionWithOtherPaddle(float desiredAngle)
     {
-        if (PongGameManager.Instance == null) return false;
-
-        List<PongPaddle> sameCirclePaddles = PongGameManager.Instance.GetPaddlesOnSameCircle(this);
-
-        foreach (PongPaddle otherPaddle in sameCirclePaddles)
+        PongPaddle[] allPaddles = FindObjectsByType<PongPaddle>(FindObjectsSortMode.None);
+        foreach (PongPaddle otherPaddle in allPaddles)
         {
-            if (otherPaddle.Player != this.Player)
+            if (otherPaddle != this)
             {
-                float halfPaddleWidth = PaddleWidth * 0.5f;
-                float otherHalfPaddleWidth = otherPaddle.PaddleWidth * 0.5f;
-
-                float angleDiff = Mathf.DeltaAngle(desiredAngle, otherPaddle.currentAngle);
-                float minDistance = halfPaddleWidth + otherHalfPaddleWidth;
-
-                if (Mathf.Abs(angleDiff) < minDistance)
+                // Verify they are on the same circle by comparing their radius
+                if (Mathf.Abs(this.radius - otherPaddle.radius) < 0.1f)
                 {
-                    return true;
+                    float angleDiff = Mathf.DeltaAngle(desiredAngle, otherPaddle.currentAngle);
+                    
+                    // We use the full widths to be absolutely sure the collision box is large enough
+                    float minDistance = PaddleWidth + otherPaddle.PaddleWidth;
+
+                    if (Mathf.Abs(angleDiff) < minDistance)
+                    {
+                        return true;
+                    }
                 }
             }
         }
