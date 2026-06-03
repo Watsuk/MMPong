@@ -86,7 +86,10 @@ namespace MMPong.Network
                 ((byte)s.phase).ToString(Inv),
                 s.winner.ToString(Inv),
                 string.Join(ListSep.ToString(), s.paddleAngle.Select(F)),
-                string.Join(ListSep.ToString(), s.scores.Select(v => v.ToString(Inv)))
+                string.Join(ListSep.ToString(), s.scores.Select(v => v.ToString(Inv))),
+                s.hasBonus ? "1" : "0",
+                s.bonusCircleIndex.ToString(Inv),
+                F(s.bonusAngle)
             }
         };
 
@@ -102,7 +105,10 @@ namespace MMPong.Network
                 : Array.Empty<float>(),
             scores = m.fields[6].Length > 0
                 ? m.fields[6].Split(ListSep).Select(v => int.Parse(v, Inv)).ToArray()
-                : Array.Empty<int>()
+                : Array.Empty<int>(),
+            hasBonus = m.fields.Length > 7 && m.fields[7] == "1",
+            bonusCircleIndex = m.fields.Length > 8 ? int.Parse(m.fields[8], Inv) : 0,
+            bonusAngle = m.fields.Length > 9 ? PF(m.fields[9]) : 0f
         };
 
         /// <summary>Demande de connexion (pseudo nettoyé des séparateurs).</summary>

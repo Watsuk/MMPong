@@ -33,5 +33,14 @@ namespace MMPong
 
         /// <summary>playerId du gagnant (-1 = aucun, tant que la partie n'est pas finie).</summary>
         public int winner;
+
+        /// <summary>Indique si un bonus est actuellement présent sur le terrain.</summary>
+        public bool hasBonus;
+
+        /// <summary>Index du cercle sur lequel se trouve le bonus.</summary>
+        public int bonusCircleIndex;
+
+        /// <summary>Angle du bonus sur son cercle.</summary>
+        public float bonusAngle;
     }
 }
