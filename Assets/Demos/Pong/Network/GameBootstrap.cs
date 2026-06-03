@@ -73,6 +73,14 @@ namespace MMPong.Network
 
         void SetupClient(string pseudo)
         {
+            // Le client n'a aucune autorité : on neutralise toute simulation/lecture clavier
+            // locale. Sans ça, chaque PongPaddle lirait son propre clavier en local et le joueur
+            // contrôlerait tous les paddles. Les positions viennent désormais du serveur.
+            foreach (var p in FindObjectsByType<PongPaddle>(FindObjectsSortMode.None))
+                p.RemoteDisplay = true;
+            PongBall ball = FindFirstObjectByType<PongBall>();
+            if (ball != null) ball.RemoteDisplay = true;
+
             var clientGo = new GameObject("NetworkClient");
             clientGo.AddComponent<UdpTransport>();
             var client = clientGo.AddComponent<NetworkClient>();
@@ -82,6 +90,8 @@ namespace MMPong.Network
             client.pseudo = string.IsNullOrEmpty(pseudo) ? "player" : pseudo;
             client.OnLobbyReceived += OnLobbyReceived;
             clientGo.AddComponent<ClientStateLogger>();
+            // Applique l'état autoritatif reçu du serveur aux paddles/balle (affichage pur).
+            clientGo.AddComponent<ClientStateApplier>();
 
             Debug.Log($"[GameBootstrap] Client démarré, connexion à {serverIp}:{listenPort}. Pseudo: {client.pseudo}");
         }

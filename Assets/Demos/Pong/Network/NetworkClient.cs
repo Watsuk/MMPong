@@ -33,6 +33,7 @@ namespace MMPong.Network
         int myId = -1;
         float currentDir;
         float sendTimer;
+        PongInput inputActions;
 
         void Start()
         {
@@ -41,6 +42,13 @@ namespace MMPong.Network
             transport.OnData += OnData;
             transport.Open(listenPort);
             transport.Send(Protocol.Encode(Protocol.BuildJoin(pseudo)), server);
+
+            // Même Input System que PongPaddle (W/S + flèches) plutôt que l'ancien
+            // Input.GetAxisRaw. On lit les deux actions pour conserver le comportement
+            // de l'axe "Vertical" historique : le joueur local pilote son paddle
+            // indifféremment au clavier WASD ou aux flèches.
+            inputActions = new PongInput();
+            inputActions.Pong.Enable();
         }
 
         /// <summary>Envoie l'intention de déplacement courante au serveur (réseau pur).</summary>
@@ -70,7 +78,9 @@ namespace MMPong.Network
 
         void Update()
         {
-            currentDir = Input.GetAxisRaw("Vertical");
+            float v = inputActions.Pong.Player1.ReadValue<float>()
+                    + inputActions.Pong.Player2.ReadValue<float>();
+            currentDir = Mathf.Clamp(v, -1f, 1f);
 
             float step = 1f / sendRate;
             sendTimer += Time.deltaTime;
@@ -84,6 +94,7 @@ namespace MMPong.Network
         void OnDisable()
         {
             if (transport != null) transport.OnData -= OnData;
+            if (inputActions != null) inputActions.Pong.Disable();
         }
     }
 }
