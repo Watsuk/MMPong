@@ -39,6 +39,18 @@ public class PongBall : MonoBehaviour
     void Start() {
       BaseSpeed = Speed;
       balleRenderer = GetComponent<Renderer>();
+      if (scoreDisplay == null)
+      {
+          GameObject scoreManager = GameObject.Find("ScoreManager");
+          if (scoreManager != null)
+          {
+              scoreDisplay = scoreManager.GetComponent<PongScore>();
+          }
+          if (scoreDisplay == null)
+          {
+              scoreDisplay = FindFirstObjectByType<PongScore>();
+          }
+      }
       ResetBall();
     }
 
