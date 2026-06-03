@@ -20,6 +20,12 @@ namespace MMPong.Network
                     if (p != null) p.DrivenExternally = true;
         }
 
+        void Update()
+        {
+            if (BonusManager.Instance != null)
+                BonusManager.Instance.ServerUpdate();
+        }
+
         /// <summary>Applique la dernière intention reçue de chaque joueur à son paddle.</summary>
         public void ApplyInput(float[] pendingInput)
         {
@@ -47,7 +53,10 @@ namespace MMPong.Network
                 ballOwner = ball != null ? ball.LastHitter : -1,
                 scores = new[] { ball != null ? ball.scoreLeft : 0, ball != null ? ball.scoreRight : 0 },
                 phase = phase,
-                winner = winner
+                winner = winner,
+                hasBonus = BonusManager.Instance != null && BonusManager.Instance.HasBonus,
+                bonusCircleIndex = BonusManager.Instance != null ? BonusManager.Instance.BonusCircleIndex : 0,
+                bonusAngle = BonusManager.Instance != null ? BonusManager.Instance.BonusAngle : 0f
             };
         }
 

@@ -35,6 +35,9 @@ namespace MMPong.Network
 
             if (ball != null)
                 ball.transform.position = new Vector3(s.ballPos.x, s.ballPos.y, 0f);
+
+            if (BonusManager.Instance != null)
+                BonusManager.Instance.SyncNetworkState(s.hasBonus, s.bonusCircleIndex, s.bonusAngle);
         }
     }
 }
