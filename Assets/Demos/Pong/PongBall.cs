@@ -13,6 +13,9 @@ public class PongBall : MonoBehaviour
     public Color blue = Color.blue;
     public Color red = Color.red;
 
+    public Texture waterTexture;
+    public Texture fireTexture;
+
     private Renderer balleRenderer;
     public float Speed = 1;
     private float BaseSpeed;
@@ -74,11 +77,10 @@ public class PongBall : MonoBehaviour
       transform.position = Vector3.zero;
       Speed = BaseSpeed;
       balleRenderer.material.color = Color.white;
-      
+      balleRenderer.material.mainTexture = null;
       if (autoLaunch) {
           _State = PongBallState.Playing;
       }
-      
       hasTouched = false;
 
       Direction = new Vector3(
@@ -104,19 +106,25 @@ public class PongBall : MonoBehaviour
         switch (c.collider.name)
         {
             case "PaddleLeft":
-                balleRenderer.material.color = blue;
+                hasTouched = true;
+                lastTouchedPlayer = PongPlayer.PlayerLeft;
+                if (waterTexture != null) balleRenderer.material.mainTexture = waterTexture;
+                balleRenderer.material.color = Color.white;
                 Direction = Vector3.Reflect(Direction, c.contacts[0].normal).normalized;
                 Speed += 0.5f;
                 break;
             case "PaddleRight":
-                balleRenderer.material.color = red;
+                hasTouched = true;
+                lastTouchedPlayer = PongPlayer.PlayerRight;
+                if (fireTexture != null) balleRenderer.material.mainTexture = fireTexture;
+                balleRenderer.material.color = Color.white;
                 Direction = Vector3.Reflect(Direction, c.contacts[0].normal).normalized;
                 Speed += 0.5f;
                 break;
 
             case "circle":
-            if (balleRenderer.material.color == red) {
-                // Red = Right
+            if (hasTouched && lastTouchedPlayer == PongPlayer.PlayerRight) {
+                // Right
                 scoreRight++;
                 if(scoreDisplay != null) scoreDisplay.MarquerPointDroit();
                 if (scoreRight >= winScore) {
@@ -124,8 +132,8 @@ public class PongBall : MonoBehaviour
                 } else {
                    ResetBall();
                 }
-            } else if (balleRenderer.material.color == blue) {
-                // Blue = Left
+            } else if (hasTouched && lastTouchedPlayer == PongPlayer.PlayerLeft) {
+                // Left
                 scoreLeft++;
                 if(scoreDisplay != null) scoreDisplay.MarquerPointGauche();
                 if (scoreLeft >= winScore) {
