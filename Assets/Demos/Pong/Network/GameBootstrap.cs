@@ -65,6 +65,7 @@ namespace MMPong.Network
             client.serverPort = listenPort;
             client.listenPort = clientPort;
             client.pseudo = string.IsNullOrEmpty(pseudo) ? "host" : pseudo;
+            client.OnLobbyReceived += OnLobbyReceived;
             clientGo.AddComponent<ClientStateLogger>();
 
             Debug.Log($"[GameBootstrap] Host démarré : {paddles.Length} paddle(s), serveur:{listenPort}, client:{clientPort}. Pseudo: {client.pseudo}");
@@ -79,9 +80,32 @@ namespace MMPong.Network
             client.serverPort = listenPort;
             client.listenPort = clientPort;
             client.pseudo = string.IsNullOrEmpty(pseudo) ? "player" : pseudo;
+            client.OnLobbyReceived += OnLobbyReceived;
             clientGo.AddComponent<ClientStateLogger>();
 
             Debug.Log($"[GameBootstrap] Client démarré, connexion à {serverIp}:{listenPort}. Pseudo: {client.pseudo}");
+        }
+
+        void OnLobbyReceived(string[] pseudos)
+        {
+            int localId = -1;
+            NetworkClient client = FindFirstObjectByType<NetworkClient>();
+            if (client != null) localId = client.PlayerId;
+
+            PongPaddle[] paddles = FindObjectsByType<PongPaddle>(FindObjectsSortMode.None)
+                .OrderBy(p => (int)p.Player)
+                .ToArray();
+                
+            for (int i = 0; i < paddles.Length && i < pseudos.Length; i++)
+            {
+                if (paddles[i] != null)
+                {
+                    paddles[i].SetPseudo(pseudos[i]);
+                    if (i == localId) {
+                        paddles[i].SetAsLocalPlayer();
+                    }
+                }
+            }
         }
     }
 }

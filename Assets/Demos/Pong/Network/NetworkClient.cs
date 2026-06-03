@@ -22,6 +22,9 @@ namespace MMPong.Network
         /// <summary>Émis à chaque snapshot reçu du serveur. Point de couture de la couche jeu.</summary>
         public event Action<GameState> OnStateReceived;
 
+        /// <summary>Émis lorsque la liste des joueurs (Lobby) est mise à jour par le serveur.</summary>
+        public event Action<string[]> OnLobbyReceived;
+
         /// <summary>Identifiant attribué par le serveur, ou -1 tant que le WELCOME n'est pas reçu.</summary>
         public int PlayerId => myId;
 
@@ -55,6 +58,9 @@ namespace MMPong.Network
                 case MessageType.Welcome:
                     myId = Protocol.ParseWelcome(m);
                     Debug.Log($"[NetworkClient] WELCOME id={myId}");
+                    break;
+                case MessageType.Lobby:
+                    OnLobbyReceived?.Invoke(Protocol.ParseLobby(m));
                     break;
                 case MessageType.State:
                     OnStateReceived?.Invoke(Protocol.ParseState(m));
