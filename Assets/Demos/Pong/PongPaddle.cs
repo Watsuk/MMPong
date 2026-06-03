@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 using System.Collections.Generic;
+using TMPro;
 
 public enum PongPlayer {
   PlayerLeft = 1,
@@ -42,10 +43,21 @@ public class PongPaddle : MonoBehaviour
     private Quaternion baseRotation;
     private int circleIndex;
 
+    private TextMeshPro nameText;
+
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
+        GameObject textObj = new GameObject("PseudoText");
+        textObj.transform.SetParent(this.transform);
+        textObj.transform.localPosition = new Vector3(0, 1.5f, 0);
+        nameText = textObj.AddComponent<TextMeshPro>();
+        nameText.alignment = TextAlignmentOptions.Center;
+        nameText.fontSize = 8;
+        nameText.color = Color.white;
+        nameText.text = "";
+
         if (!DrivenExternally)
         {
             inputActions = new PongInput();
@@ -70,11 +82,14 @@ public class PongPaddle : MonoBehaviour
             }
         }
 
-        Vector3 offset = transform.position - CenterPoint;
-        radius = offset.magnitude;
-        currentAngle = Mathf.Atan2(offset.y, offset.x) * Mathf.Rad2Deg;
-        baseAngle = currentAngle;
-        baseRotation = transform.rotation;
+        if (radius == 0f)
+        {
+            Vector3 offset = transform.position - CenterPoint;
+            radius = offset.magnitude;
+            currentAngle = Mathf.Atan2(offset.y, offset.x) * Mathf.Rad2Deg;
+            baseAngle = currentAngle;
+            baseRotation = transform.rotation;
+        }
     }
 
     public void SetCircle(int index, float newRadius, Vector3 center)
@@ -117,8 +132,46 @@ public class PongPaddle : MonoBehaviour
 
       float angleDiff = currentAngle - baseAngle;
       transform.rotation = baseRotation * Quaternion.Euler(0, 0, angleDiff);
+
+      if (nameText != null)
+      {
+          nameText.transform.rotation = Quaternion.identity;
+      }
     }
 
+    public void SetPseudo(string pseudo)
+    {
+        if (nameText != null)
+        {
+            nameText.text = pseudo;
+        }
+    }
+
+    private bool isLocalPlayerSet = false;
+    public void SetAsLocalPlayer()
+    {
+        if (isLocalPlayerSet) return;
+        isLocalPlayerSet = true;
+
+        GameObject outline = new GameObject("Outline");
+        outline.transform.SetParent(this.transform);
+        outline.transform.localPosition = new Vector3(0, 0, 0.5f);
+        outline.transform.localRotation = Quaternion.identity;
+        outline.transform.localScale = new Vector3(1.15f, 1.15f, 1.0f);
+
+        MeshFilter myMesh = GetComponent<MeshFilter>();
+        if (myMesh != null) {
+            MeshFilter outMesh = outline.AddComponent<MeshFilter>();
+            outMesh.sharedMesh = myMesh.sharedMesh;
+        }
+
+        Renderer myRen = GetComponent<Renderer>();
+        if (myRen != null) {
+            MeshRenderer outRen = outline.AddComponent<MeshRenderer>();
+            outRen.material = new Material(Shader.Find("Unlit/Color"));
+            outRen.material.color = Color.white;
+        }
+    }
     bool CheckCollisionWithOtherPaddle(float desiredAngle)
     {
         PongPaddle[] allPaddles = FindObjectsByType<PongPaddle>(FindObjectsSortMode.None);

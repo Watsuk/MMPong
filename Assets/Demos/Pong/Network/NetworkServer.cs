@@ -22,6 +22,7 @@ namespace MMPong.Network
 
         UdpTransport transport;
         readonly Dictionary<int, IPEndPoint> clients = new Dictionary<int, IPEndPoint>();
+        readonly Dictionary<int, string> playerNames = new Dictionary<int, string>();
         readonly float[] pendingInput = new float[MaxPlayers];
         GameState state;
         uint tickSeq;
@@ -39,15 +40,16 @@ namespace MMPong.Network
             Message m = Protocol.Decode(data);
             switch (m.type)
             {
-                case MessageType.Join: HandleJoin(from); break;
+                case MessageType.Join: HandleJoin(m, from); break;
                 case MessageType.Input: HandleInput(m); break;
             }
         }
 
-        void HandleJoin(IPEndPoint from)
+        void HandleJoin(Message m, IPEndPoint from)
         {
+            string pseudo = Protocol.ParseJoin(m);
             int id = FindClientId(from);
-            if (id < 0) id = AssignId(from);
+            if (id < 0) id = AssignId(from, pseudo);
             if (id < 0)
             {
                 Debug.LogWarning("[NetworkServer] Partie pleine, JOIN refusé.");
@@ -55,7 +57,19 @@ namespace MMPong.Network
             }
 
             transport.Send(Protocol.Encode(Protocol.BuildWelcome(id)), from);
-            Debug.Log($"[NetworkServer] client joined id={id} from {from}");
+            Debug.Log($"[NetworkServer] client joined id={id} pseudo={pseudo} from {from}");
+            
+            BroadcastLobby();
+        }
+
+        void BroadcastLobby()
+        {
+            string[] pseudos = new string[MaxPlayers];
+            for (int i = 0; i < MaxPlayers; i++)
+            {
+                pseudos[i] = playerNames.ContainsKey(i) ? playerNames[i] : "";
+            }
+            Broadcast(Protocol.BuildLobby(pseudos));
         }
 
         void HandleInput(Message m)
@@ -98,13 +112,14 @@ namespace MMPong.Network
             return -1;
         }
 
-        int AssignId(IPEndPoint ep)
+        int AssignId(IPEndPoint ep, string pseudo)
         {
             for (int i = 0; i < MaxPlayers; i++)
             {
                 if (!clients.ContainsKey(i))
                 {
                     clients[i] = ep;
+                    playerNames[i] = pseudo;
                     return i;
                 }
             }
