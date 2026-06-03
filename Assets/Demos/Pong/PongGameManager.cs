@@ -95,11 +95,27 @@ public class PongGameManager : MonoBehaviour
 
     void AssignPaddlesToCircles()
     {
+        List<int> availableCircles = new List<int>();
+        for (int i = 0; i < CircleRadii.Length; i++)
+        {
+            availableCircles.Add(i);
+        }
+
+        // Mélange aléatoire des cercles
+        for (int i = 0; i < availableCircles.Count; i++)
+        {
+            int temp = availableCircles[i];
+            int randomIndex = Random.Range(i, availableCircles.Count);
+            availableCircles[i] = availableCircles[randomIndex];
+            availableCircles[randomIndex] = temp;
+        }
+
         List<int> circleIndices = new List<int>();
         for (int i = 0; i < NumberOfPlayers; i++)
         {
-            int randomCircle = Random.Range(0, CircleRadii.Length);
-            circleIndices.Add(randomCircle);
+            // Assigner un cercle différent à chaque joueur (si possible)
+            int circle = availableCircles[i % availableCircles.Count];
+            circleIndices.Add(circle);
         }
 
         for (int i = 0; i < allPaddles.Count && i < circleIndices.Count; i++)
