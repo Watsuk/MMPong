@@ -4,7 +4,8 @@ public enum PongBallState {
   Playing = 0,
   PlayerLeftWin = 1,
   PlayerRightWin = 2,
-  WaitingForServe = 3
+  WaitingForServe = 3,
+  StartMenu = 4
 }
 
 public class PongBall : MonoBehaviour
@@ -17,7 +18,7 @@ public class PongBall : MonoBehaviour
     private float BaseSpeed;
 
     Vector3 Direction;
-    PongBallState _State = PongBallState.Playing;
+    PongBallState _State = PongBallState.StartMenu;
 
     public int scoreLeft = 0;
     public int scoreRight = 0;
@@ -51,17 +52,29 @@ public class PongBall : MonoBehaviour
               scoreDisplay = FindFirstObjectByType<PongScore>();
           }
       }
-      ResetBall();
+      ResetBall(false); // Do not launch immediately
     }
 
     private PongPlayer lastTouchedPlayer;
     private bool hasTouched = false;
 
-    public void ResetBall() {
+    public void SetStateToMenu() {
+        _State = PongBallState.StartMenu;
+    }
+
+    public void StartGameFromMenu() {
+        _State = PongBallState.Playing;
+    }
+
+    public void ResetBall(bool autoLaunch = true) {
       transform.position = Vector3.zero;
       Speed = BaseSpeed;
       balleRenderer.material.color = Color.white;
-      _State = PongBallState.Playing;
+      
+      if (autoLaunch) {
+          _State = PongBallState.Playing;
+      }
+      
       hasTouched = false;
       
       Direction = new Vector3(
