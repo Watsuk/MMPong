@@ -3,6 +3,12 @@ using System.Collections.Generic;
 
 public class PongGameManager : MonoBehaviour
 {
+    public GameObject paddlePrefab;
+    public List<Transform> spawnPoints;
+    [Range(2, 6)]
+    public int totalPlayers = 2;
+    private List<GameObject> activePaddles = new List<GameObject>();
+
     [SerializeField] public float[] CircleRadii = { 5f, 7f, 9f };
     [SerializeField] public int NumberOfPlayers = 2;
     public Vector3 CenterPoint = Vector3.zero;
@@ -44,6 +50,7 @@ public class PongGameManager : MonoBehaviour
             }
         }
 
+        SpawnPlayers();
         InitializeGame();
         CreateCircleVisuals();
     }
@@ -57,6 +64,15 @@ public class PongGameManager : MonoBehaviour
         foreach (PongPaddle paddle in existingPaddles)
         {
             allPaddles.Add(paddle);
+        }
+
+        foreach (GameObject paddleObj in activePaddles)
+        {
+            PongPaddle p = paddleObj.GetComponent<PongPaddle>();
+            if (p != null && !allPaddles.Contains(p))
+            {
+                allPaddles.Add(p);
+            }
         }
 
         AssignPaddlesToCircles();
@@ -96,36 +112,13 @@ public class PongGameManager : MonoBehaviour
 
     void AssignPaddlesToCircles()
     {
-        List<int> availableCircles = new List<int>();
-        for (int i = 0; i < CircleRadii.Length; i++)
+        for (int i = 0; i < allPaddles.Count; i++)
         {
-            availableCircles.Add(i);
-        }
+            int randomCircle = Random.Range(0, CircleRadii.Length);
+            float radius = CircleRadii[randomCircle];
 
-        // Mélange aléatoire des cercles
-        for (int i = 0; i < availableCircles.Count; i++)
-        {
-            int temp = availableCircles[i];
-            int randomIndex = Random.Range(i, availableCircles.Count);
-            availableCircles[i] = availableCircles[randomIndex];
-            availableCircles[randomIndex] = temp;
-        }
-
-        List<int> circleIndices = new List<int>();
-        for (int i = 0; i < NumberOfPlayers; i++)
-        {
-            // Assigner un cercle différent à chaque joueur (si possible)
-            int circle = availableCircles[i % availableCircles.Count];
-            circleIndices.Add(circle);
-        }
-
-        for (int i = 0; i < allPaddles.Count && i < circleIndices.Count; i++)
-        {
-            int circleIndex = circleIndices[i];
-            float radius = CircleRadii[circleIndex];
-
-            paddleToCircleIndex[allPaddles[i]] = circleIndex;
-            allPaddles[i].SetCircle(circleIndex, radius, CenterPoint);
+            paddleToCircleIndex[allPaddles[i]] = randomCircle;
+            allPaddles[i].SetCircle(randomCircle, radius, CenterPoint);
         }
     }
 
@@ -161,5 +154,28 @@ public class PongGameManager : MonoBehaviour
         }
 
         return result;
+    }
+
+    void SpawnPlayers()
+    {
+        int existingCount = FindObjectsByType<PongPaddle>(FindObjectsSortMode.None).Length;
+
+        int playersToSpawn = Mathf.Min(totalPlayers, spawnPoints.Count);
+
+        for (int i = 0; i < playersToSpawn; i++)
+        {
+            GameObject newPaddle = Instantiate(paddlePrefab, spawnPoints[i].position, spawnPoints[i].rotation);
+
+            activePaddles.Add(newPaddle);
+
+            PongPaddle paddleScript = newPaddle.GetComponent<PongPaddle>();
+            if (paddleScript != null)
+            {
+                paddleScript.Player = (PongPlayer)(existingCount + i + 1);
+
+                bool isControllablePlayer = (existingCount + i < 2);
+                paddleScript.DrivenExternally = !isControllablePlayer;
+            }
+        }
     }
 }
