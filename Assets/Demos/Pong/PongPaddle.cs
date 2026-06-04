@@ -5,7 +5,11 @@ using TMPro;
 
 public enum PongPlayer {
   PlayerLeft = 1,
-  PlayerRight = 2
+  PlayerRight = 2,
+  Player3 = 3,
+  Player4 = 4,
+  Player5 = 5,
+  Player6 = 6
 }
 
 public class PongPaddle : MonoBehaviour
@@ -42,6 +46,7 @@ public class PongPaddle : MonoBehaviour
     private float baseAngle;
     private Quaternion baseRotation;
     private int circleIndex;
+    private bool circleInitialized = false;
 
     private TextMeshPro nameText;
 
@@ -68,27 +73,40 @@ public class PongPaddle : MonoBehaviour
               case PongPlayer.PlayerRight:
                 PlayerAction = inputActions.Pong.Player2;
                 break;
+            default:
+                PlayerAction = null;
+                break;
             }
 
-            PlayerAction.Enable();
+            if (PlayerAction != null)
+            {
+                PlayerAction.Enable();
+            }
         }
 
         Renderer r = GetComponent<Renderer>();
         if (r != null) {
-            if (Player == PongPlayer.PlayerLeft) {
+            if ((int)Player % 2 == 1)
+            {
                 r.material.color = Color.blue;
-            } else if (Player == PongPlayer.PlayerRight) {
+            }
+            else
+            {
                 r.material.color = Color.red;
             }
         }
 
         if (radius == 0f)
         {
-            Vector3 offset = transform.position - CenterPoint;
-            radius = offset.magnitude;
-            currentAngle = Mathf.Atan2(offset.y, offset.x) * Mathf.Rad2Deg;
-            baseAngle = currentAngle;
-            baseRotation = transform.rotation;
+            if (!circleInitialized)
+            {
+                Vector3 offset = transform.position - CenterPoint;
+                radius = offset.magnitude;
+                currentAngle = Mathf.Atan2(offset.y, offset.x) * Mathf.Rad2Deg;
+                baseAngle = currentAngle;
+                baseRotation = transform.rotation;
+                circleInitialized = true;
+            }
         }
     }
 
@@ -97,6 +115,7 @@ public class PongPaddle : MonoBehaviour
         circleIndex = index;
         radius = newRadius;
         CenterPoint = center;
+        circleInitialized = true;
 
         Vector3 offset = transform.position - CenterPoint;
         currentAngle = Mathf.Atan2(offset.y, offset.x) * Mathf.Rad2Deg;
@@ -109,10 +128,17 @@ public class PongPaddle : MonoBehaviour
     {
       if (RemoteDisplay) return;   // client : position pilotée par ApplyNetworkAngle
 
-      float direction = DrivenExternally ? ExternalDirection : PlayerAction.ReadValue<float>();
-
-      // Convert linear speed to angular speed: v = r * omega
-      float angularSpeedDeg = (Speed / radius) * Mathf.Rad2Deg;
+        float direction = 0f;
+        if (DrivenExternally)
+        {
+            direction = ExternalDirection;
+        }
+        else if (PlayerAction != null)
+        {
+            direction = PlayerAction.ReadValue<float>();
+        }
+        // Convert linear speed to angular speed: v = r * omega
+        float angularSpeedDeg = (Speed / radius) * Mathf.Rad2Deg;
 
       // Direction is always counter-clockwise: positive = counter-clockwise, negative = clockwise
       float newAngle = currentAngle - direction * angularSpeedDeg * Time.deltaTime;
