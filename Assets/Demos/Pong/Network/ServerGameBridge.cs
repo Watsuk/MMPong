@@ -47,7 +47,10 @@ namespace MMPong.Network
                 ballOwner = ball != null ? ball.LastHitter : -1,
                 scores = new[] { ball != null ? ball.scoreLeft : 0, ball != null ? ball.scoreRight : 0 },
                 phase = phase,
-                winner = winner
+                winner = winner,
+                hasBonus = BonusManager.Instance != null && BonusManager.Instance.HasBonus,
+                bonusCircleIndex = BonusManager.Instance != null ? BonusManager.Instance.BonusCircleIndex : 0,
+                bonusAngle = BonusManager.Instance != null ? BonusManager.Instance.BonusAngle : 0f
             };
         }
 

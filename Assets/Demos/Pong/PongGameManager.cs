@@ -25,6 +25,7 @@ public class PongGameManager : MonoBehaviour
             return;
         }
         instance = this;
+        gameObject.AddComponent<MMPong.BonusManager>();
     }
 
     void Start()
