@@ -20,12 +20,6 @@ namespace MMPong.Network
                     if (p != null) p.DrivenExternally = true;
         }
 
-        void Update()
-        {
-            if (BonusManager.Instance != null)
-                BonusManager.Instance.ServerUpdate();
-        }
-
         /// <summary>Applique la dernière intention reçue de chaque joueur à son paddle.</summary>
         public void ApplyInput(float[] pendingInput)
         {
