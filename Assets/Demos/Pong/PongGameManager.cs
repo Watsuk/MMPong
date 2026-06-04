@@ -3,6 +3,12 @@ using System.Collections.Generic;
 
 public class PongGameManager : MonoBehaviour
 {
+    public GameObject paddlePrefabRed;
+    public List<Transform> spawnPoints;
+    [Range(2, 6)]
+    public int totalPlayers = 2;
+    private List<GameObject> activePaddles = new List<GameObject>();
+
     [SerializeField] public float[] CircleRadii = { 5f, 7f, 9f };
     [SerializeField] public int NumberOfPlayers = 2;
     public Vector3 CenterPoint = Vector3.zero;
@@ -43,6 +49,7 @@ public class PongGameManager : MonoBehaviour
             }
         }
 
+        SpawnPlayers();
         InitializeGame();
         CreateCircleVisuals();
     }
@@ -56,6 +63,15 @@ public class PongGameManager : MonoBehaviour
         foreach (PongPaddle paddle in existingPaddles)
         {
             allPaddles.Add(paddle);
+        }
+
+        foreach (GameObject paddleObj in activePaddles)
+        {
+             PongPaddle p = paddleObj.GetComponent<PongPaddle>();
+             if (p != null && !allPaddles.Contains(p))
+             {
+                 allPaddles.Add(p);
+             }
         }
 
         AssignPaddlesToCircles();
@@ -95,20 +111,13 @@ public class PongGameManager : MonoBehaviour
 
     void AssignPaddlesToCircles()
     {
-        List<int> circleIndices = new List<int>();
-        for (int i = 0; i < NumberOfPlayers; i++)
+        for (int i = 0; i < allPaddles.Count; i++)
         {
             int randomCircle = Random.Range(0, CircleRadii.Length);
-            circleIndices.Add(randomCircle);
-        }
+            float radius = CircleRadii[randomCircle];
 
-        for (int i = 0; i < allPaddles.Count && i < circleIndices.Count; i++)
-        {
-            int circleIndex = circleIndices[i];
-            float radius = CircleRadii[circleIndex];
-
-            paddleToCircleIndex[allPaddles[i]] = circleIndex;
-            allPaddles[i].SetCircle(circleIndex, radius, CenterPoint);
+            paddleToCircleIndex[allPaddles[i]] = randomCircle;
+            allPaddles[i].SetCircle(randomCircle, radius, CenterPoint);
         }
     }
 
@@ -144,5 +153,34 @@ public class PongGameManager : MonoBehaviour
         }
 
         return result;
+    }
+    void SpawnPlayers()
+    {
+        // On compte les paddles préexistants dans la scène pour ne pas utiliser les mêmes IDs
+        int existingCount = FindObjectsByType<PongPaddle>(FindObjectsSortMode.None).Length;
+
+        // On s'assure de ne pas dépasser le nombre de spawn points configurés
+        int playersToSpawn = Mathf.Min(totalPlayers, spawnPoints.Count);
+
+        for (int i = 0; i < playersToSpawn; i++)
+        {
+            // 1. Création du paddle à la position du spawn point correspondant
+            GameObject newPaddle = Instantiate(paddlePrefabRed, spawnPoints[i].position, spawnPoints[i].rotation);
+
+            // 2. On stocke la référence pour pouvoir les manipuler plus tard
+            activePaddles.Add(newPaddle);
+
+            // On s'assure que le GameManager prend bien en compte ces nouveaux paddles
+            PongPaddle paddleScript = newPaddle.GetComponent<PongPaddle>();
+            if (paddleScript != null)
+            {
+                  // Attribuer le bon joueur en prenant en compte ceux déjà présents
+                  paddleScript.Player = (PongPlayer)(existingCount + i + 1);
+
+                  // Permettre le contrôle local clavier pour les 2 premiers joueurs, le reste est contrôlé par le réseau/serveur
+                  bool isControllablePlayer = (existingCount + i < 2);
+                  paddleScript.DrivenExternally = !isControllablePlayer;
+            }
+        }
     }
 }

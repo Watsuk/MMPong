@@ -1,36 +1,34 @@
-﻿using UnityEngine;
-using TMPro; // /!\ TRÈS IMPORTANT pour pouvoir utiliser TextMeshPro
+using UnityEngine;
+using TMPro;
 
 public class PongScore : MonoBehaviour
 {
-    // On expose les variables pour glisser-déposer nos textes dans l'éditeur
-    public TextMeshProUGUI leftTextScore;
-    public TextMeshProUGUI rightTextScore;
+    public TextMeshProUGUI blueTextScore;
+    public TextMeshProUGUI redTextScore;
 
-    private int leftScore = 0;
-    private int rightScore = 0;
+    private int blueScore = 0;
+    private int redScore = 0;
 
     void Start()
     {
-        // On initialise l'affichage au début de la partie
-        ActualiserAffichage();
+        RefreshScoreDisplay();
     }
 
-    public void MarquerPointGauche()
+    public void BlueScorePoint()
     {
-        leftScore++;
-        ActualiserAffichage();
+        blueScore++;
+        RefreshScoreDisplay();
     }
 
-    public void MarquerPointDroit()
+    public void RedScorePoint()
     {
-        rightScore++;
-        ActualiserAffichage();
+        redScore++;
+        RefreshScoreDisplay();
     }
 
-    void ActualiserAffichage()
+    void RefreshScoreDisplay()
     {
-        leftTextScore.text = leftScore.ToString();
-        rightTextScore.text = rightScore.ToString();
+        blueTextScore.text = blueScore.ToString();
+        redTextScore.text = redScore.ToString();
     }
 }

@@ -33,7 +33,7 @@ namespace MMPong.Network
         void SetupHost()
         {
             PongPaddle[] paddles = FindObjectsByType<PongPaddle>(FindObjectsSortMode.None)
-                .OrderBy(p => (int)p.Player)          // PlayerLeft(1) -> index 0, PlayerRight(2) -> index 1
+                .OrderBy(p => (int)p.Player)          // PlayerBlue(1) -> index 0, PlayerRed(2) -> index 1
                 .ToArray();
             PongBall ball = FindFirstObjectByType<PongBall>();
 

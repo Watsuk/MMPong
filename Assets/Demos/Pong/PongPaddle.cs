@@ -3,13 +3,17 @@ using UnityEngine.InputSystem;
 using System.Collections.Generic;
 
 public enum PongPlayer {
-  PlayerLeft = 1,
-  PlayerRight = 2
+  Player1 = 1,
+  Player2 = 2,
+  Player3 = 3,
+  Player4 = 4,
+  Player5 = 5,
+  Player6 = 6
 }
 
 public class PongPaddle : MonoBehaviour
-{ 
-    public PongPlayer Player = PongPlayer.PlayerLeft;
+{
+    public PongPlayer Player = PongPlayer.Player1;
     public float Speed = 1;
     public float PaddleWidth = 10f;
     public Vector3 CenterPoint = Vector3.zero;
@@ -30,7 +34,7 @@ public class PongPaddle : MonoBehaviour
     private float baseAngle;
     private Quaternion baseRotation;
     private int circleIndex;
-
+    private bool circleInitialized = false;
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
@@ -39,31 +43,42 @@ public class PongPaddle : MonoBehaviour
         {
             inputActions = new PongInput();
             switch (Player) {
-              case PongPlayer.PlayerLeft:
+              case PongPlayer.Player1:
                 PlayerAction = inputActions.Pong.Player1;
                 break;
-              case PongPlayer.PlayerRight:
+              case PongPlayer.Player2:
                 PlayerAction = inputActions.Pong.Player2;
+                break;
+              default:
+                // Pour Player3, Player4, etc., pour l'instant on ignore l'input
+                PlayerAction = null;
                 break;
             }
 
-            PlayerAction.Enable();
+            if (PlayerAction != null) {
+                PlayerAction.Enable();
+            }
         }
 
         Renderer r = GetComponent<Renderer>();
         if (r != null) {
-            if (Player == PongPlayer.PlayerLeft) {
+            // Les joueurs impairs (1, 3, etc.) sont Bleus, les joueurs pairs (2, 4, etc.) sont Rouges
+            if ((int)Player % 2 == 1) {
                 r.material.color = Color.blue;
-            } else if (Player == PongPlayer.PlayerRight) {
+            } else {
                 r.material.color = Color.red;
             }
         }
 
-        Vector3 offset = transform.position - CenterPoint;
-        radius = offset.magnitude;
-        currentAngle = Mathf.Atan2(offset.y, offset.x) * Mathf.Rad2Deg;
-        baseAngle = currentAngle;
-        baseRotation = transform.rotation;
+        if (!circleInitialized)
+        {
+            Vector3 offset = transform.position - CenterPoint;
+            radius = offset.magnitude;
+            currentAngle = Mathf.Atan2(offset.y, offset.x) * Mathf.Rad2Deg;
+            baseAngle = currentAngle;
+            baseRotation = transform.rotation;
+            circleInitialized = true;
+        }
     }
 
     public void SetCircle(int index, float newRadius, Vector3 center)
@@ -71,6 +86,7 @@ public class PongPaddle : MonoBehaviour
         circleIndex = index;
         radius = newRadius;
         CenterPoint = center;
+        circleInitialized = true;
 
         Vector3 offset = transform.position - CenterPoint;
         currentAngle = Mathf.Atan2(offset.y, offset.x) * Mathf.Rad2Deg;
@@ -78,10 +94,15 @@ public class PongPaddle : MonoBehaviour
         baseRotation = transform.rotation;
     }
 
-    // Update is called once per frame
+        // Update is called once per frame
     void Update()
     {
-      float direction = DrivenExternally ? ExternalDirection : PlayerAction.ReadValue<float>();
+      float direction = 0f;
+      if (DrivenExternally) {
+          direction = ExternalDirection;
+      } else if (PlayerAction != null) {
+          direction = PlayerAction.ReadValue<float>();
+      }
 
       // Convert linear speed to angular speed: v = r * omega
       float angularSpeedDeg = (Speed / radius) * Mathf.Rad2Deg;

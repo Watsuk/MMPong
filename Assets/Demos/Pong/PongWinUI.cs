@@ -4,8 +4,8 @@ using UnityEngine.SceneManagement;
 public class PongWinUI : MonoBehaviour
 {
     public GameObject Panel;
-    public GameObject PlayerLeft;
-    public GameObject PlayerRight;
+    public GameObject PlayerBlue;
+    public GameObject PlayerRed;
 
     PongBall Ball;
 
@@ -13,8 +13,8 @@ public class PongWinUI : MonoBehaviour
     void Start()
     {
         Panel.SetActive(false);
-        PlayerLeft.SetActive(false);
-        PlayerRight.SetActive(false);
+        PlayerBlue.SetActive(false);
+        PlayerRed.SetActive(false);
         Ball = GameObject.FindFirstObjectByType<PongBall>();
     }
 
@@ -25,16 +25,16 @@ public class PongWinUI : MonoBehaviour
           case PongBallState.WaitingForServe:
           case PongBallState.Playing:
             Panel.SetActive(false);
-            PlayerLeft.SetActive(false);
-            PlayerRight.SetActive(false);
+            PlayerBlue.SetActive(false);
+            PlayerRed.SetActive(false);
             break;
-          case PongBallState.PlayerLeftWin:
+          case PongBallState.PlayerBlueWin:
             Panel.SetActive(true);
-            PlayerLeft.SetActive(true);
+            PlayerBlue.SetActive(true);
             break;
-          case PongBallState.PlayerRightWin:
+          case PongBallState.PlayerRedWin:
             Panel.SetActive(true);
-            PlayerRight.SetActive(true);
+            PlayerRed.SetActive(true);
             break;
         }
        

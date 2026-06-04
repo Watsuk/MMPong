@@ -45,7 +45,7 @@ namespace MMPong.Network
                 paddleAngle = angles,
                 ballPos = ball != null ? (Vector2)ball.transform.position : Vector2.zero,
                 ballOwner = ball != null ? ball.LastHitter : -1,
-                scores = new[] { ball != null ? ball.scoreLeft : 0, ball != null ? ball.scoreRight : 0 },
+                scores = new[] { ball != null ? ball.scoreBlue : 0, ball != null ? ball.scoreRed : 0 },
                 phase = phase,
                 winner = winner
             };
@@ -57,8 +57,8 @@ namespace MMPong.Network
             {
                 case PongBallState.WaitingForServe: return (GamePhase.WaitingForServe, -1);
                 case PongBallState.Playing:         return (GamePhase.Playing, -1);
-                case PongBallState.PlayerLeftWin:   return (GamePhase.GameOver, 0);
-                case PongBallState.PlayerRightWin:  return (GamePhase.GameOver, 1);
+                case PongBallState.PlayerBlueWin:   return (GamePhase.GameOver, 0);
+                case PongBallState.PlayerRedWin:    return (GamePhase.GameOver, 1);
                 default:                            return (GamePhase.Playing, -1);
             }
         }
