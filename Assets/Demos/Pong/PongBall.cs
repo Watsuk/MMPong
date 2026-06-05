@@ -17,6 +17,7 @@ public class PongBall : MonoBehaviour
     public Texture fireTexture;
 
     private Renderer balleRenderer;
+    private TrailRenderer trail;
     public float Speed = 1;
     private float BaseSpeed;
 
@@ -47,6 +48,7 @@ public class PongBall : MonoBehaviour
     void Start() {
       BaseSpeed = Speed;
       balleRenderer = GetComponent<Renderer>();
+      trail = GetComponent<TrailRenderer>();
       if (scoreDisplay == null)
       {
           GameObject scoreManager = GameObject.Find("ScoreManager");
@@ -73,11 +75,57 @@ public class PongBall : MonoBehaviour
         _State = PongBallState.Playing;
     }
 
+    /// <summary>Met à jour l'état visuel (texture et couleur de la traînée) selon le dernier joueur ayant touché la balle.</summary>
+    public void ApplyVisualState(int ownerId)
+    {
+        if (balleRenderer == null)
+            balleRenderer = GetComponent<Renderer>();
+        if (trail == null)
+            trail = GetComponent<TrailRenderer>();
+
+        if (ownerId == 0) // Left Player (Water)
+        {
+            if (waterTexture != null) balleRenderer.material.mainTexture = waterTexture;
+            if (balleRenderer != null) balleRenderer.material.color = Color.white;
+            if (trail != null)
+            {
+                trail.startColor = new Color(0f, 0.7f, 1f); // Un beau bleu ciel/eau
+                trail.endColor = new Color(0f, 0.7f, 1f, 0f);
+            }
+        }
+        else if (ownerId == 1) // Right Player (Fire)
+        {
+            if (fireTexture != null) balleRenderer.material.mainTexture = fireTexture;
+            if (balleRenderer != null) balleRenderer.material.color = Color.white;
+            if (trail != null)
+            {
+                trail.startColor = new Color(1f, 0.3f, 0f); // Un bel orange/rouge feu
+                trail.endColor = new Color(1f, 0.3f, 0f, 0f);
+            }
+        }
+        else // Aucun (-1)
+        {
+            if (balleRenderer != null)
+            {
+                balleRenderer.material.mainTexture = null;
+                balleRenderer.material.color = Color.white;
+            }
+            if (trail != null)
+            {
+                trail.startColor = Color.white;
+                trail.endColor = new Color(1f, 1f, 1f, 0f);
+            }
+        }
+    }
+
     public void ResetBall(bool autoLaunch = true) {
       transform.position = Vector3.zero;
       Speed = BaseSpeed;
-      balleRenderer.material.color = Color.white;
-      balleRenderer.material.mainTexture = null;
+      ApplyVisualState(-1);
+      if (trail != null)
+      {
+          trail.Clear(); // Supprime la traînée de téléportation
+      }
       if (autoLaunch) {
           _State = PongBallState.Playing;
       }
@@ -108,16 +156,14 @@ public class PongBall : MonoBehaviour
             case "PaddleLeft":
                 hasTouched = true;
                 lastTouchedPlayer = PongPlayer.PlayerLeft;
-                if (waterTexture != null) balleRenderer.material.mainTexture = waterTexture;
-                balleRenderer.material.color = Color.white;
+                ApplyVisualState(0);
                 Direction = Vector3.Reflect(Direction, c.contacts[0].normal).normalized;
                 Speed += 0.5f;
                 break;
             case "PaddleRight":
                 hasTouched = true;
                 lastTouchedPlayer = PongPlayer.PlayerRight;
-                if (fireTexture != null) balleRenderer.material.mainTexture = fireTexture;
-                balleRenderer.material.color = Color.white;
+                ApplyVisualState(1);
                 Direction = Vector3.Reflect(Direction, c.contacts[0].normal).normalized;
                 Speed += 0.5f;
                 break;

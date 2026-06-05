@@ -34,7 +34,10 @@ namespace MMPong.Network
                 paddles[i].ApplyNetworkAngle(s.paddleAngle[i]);
 
             if (ball != null)
+            {
                 ball.transform.position = new Vector3(s.ballPos.x, s.ballPos.y, 0f);
+                ball.ApplyVisualState(s.ballOwner);
+            }
 
             if (BonusManager.Instance != null)
                 BonusManager.Instance.SyncNetworkState(s.hasBonus, s.bonusCircleIndex, s.bonusAngle);
