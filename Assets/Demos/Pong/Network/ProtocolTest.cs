@@ -60,6 +60,35 @@ namespace MMPong.Network
             gate.Reset();
             Check("Gate accepte après Reset", gate.Accept(1));
 
+            // DuplicateFilter (dédup exactly-once, indépendant de l'ordre)
+            var dup = new DuplicateFilter();
+            Check("Dup accepte premier", dup.IsNew(1));
+            Check("Dup rejette doublon", !dup.IsNew(1));
+            Check("Dup accepte autre seq", dup.IsNew(2));
+
+            // ReliableChannel — émission : assigne un seq, ré-émet sans ACK, stoppe sur ACK
+            var sent = new System.Collections.Generic.List<byte[]>();
+            var chan = new ReliableChannel(b => sent.Add(b));
+            chan.SendReliable(Protocol.BuildJoin("alice"));
+            Check("Reliable émet une fois", sent.Count == 1);
+            uint sentSeq = Protocol.Decode(sent[0]).seq;
+            Check("Reliable assigne un seq", sentSeq >= 1);
+            chan.Tick(0.25f);
+            Check("Reliable ré-émet sans ACK", sent.Count == 2);
+            chan.HandleAck(sentSeq);
+            chan.Tick(0.25f);
+            Check("Reliable stoppe après ACK", sent.Count == 2);
+
+            // ReliableChannel — réception : renvoie un ACK puis déduplique
+            var inbox = new System.Collections.Generic.List<byte[]>();
+            var rx = new ReliableChannel(b => inbox.Add(b));
+            var welcome = Protocol.BuildWelcome(2);
+            welcome.seq = 7;
+            bool fresh = rx.ReceiveReliable(welcome);
+            Check("Reliable renvoie un ACK", inbox.Count == 1 && Protocol.Decode(inbox[0]).type == MessageType.Ack);
+            Check("Reliable premier reçu = frais", fresh);
+            Check("Reliable doublon ignoré", !rx.ReceiveReliable(welcome));
+
             if (ok == total) Debug.Log($"[ProtocolTest] {ok}/{total} OK");
             else Debug.LogError($"[ProtocolTest] {ok}/{total} OK — voir erreurs ci-dessus");
         }
