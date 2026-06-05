@@ -25,6 +25,9 @@ namespace MMPong.Network
         /// <summary>Émis lorsque la liste des joueurs (Lobby) est mise à jour par le serveur.</summary>
         public event Action<string[]> OnLobbyReceived;
 
+        /// <summary>Émis à la réception du START : la partie démarre (point de couture UI/jeu).</summary>
+        public event Action OnGameStarted;
+
         /// <summary>Identifiant attribué par le serveur, ou -1 tant que le WELCOME n'est pas reçu.</summary>
         public int PlayerId => myId;
 
@@ -53,6 +56,13 @@ namespace MMPong.Network
             transport.Send(Protocol.Encode(Protocol.BuildInput(myId, dir)), server);
         }
 
+        /// <summary>Signale au serveur que ce joueur est prêt (lobby). Envoyé de façon fiable.</summary>
+        public void SendReady()
+        {
+            if (myId < 0) return;
+            serverChannel.SendReliable(Protocol.BuildReady(myId));
+        }
+
         void OnData(byte[] data, IPEndPoint from)
         {
             Message m = Protocol.Decode(data);
@@ -69,6 +79,9 @@ namespace MMPong.Network
                     break;
                 case MessageType.Lobby:
                     OnLobbyReceived?.Invoke(Protocol.ParseLobby(m));
+                    break;
+                case MessageType.Start:
+                    OnGameStarted?.Invoke();
                     break;
                 case MessageType.State:
                     GameState s = Protocol.ParseState(m);

@@ -26,12 +26,12 @@ namespace MMPong.Network
 
         public void StartGame(string pseudo)
         {
-            PongBall ball = FindFirstObjectByType<PongBall>();
-            if (ball != null) ball.StartGameFromMenu();
-
             switch (mode)
             {
                 case GameMode.Local:
+                    // Jeu local : démarrage immédiat, pas de lobby réseau.
+                    PongBall ball = FindFirstObjectByType<PongBall>();
+                    if (ball != null) ball.StartGameFromMenu();
                     break;
                 case GameMode.Host:
                     SetupHost(pseudo);
@@ -57,6 +57,7 @@ namespace MMPong.Network
             var server = serverGo.AddComponent<NetworkServer>();
             server.bridge = bridge;
             server.listenPort = listenPort;
+            server.expectedPlayers = PongGameManager.Instance != null ? PongGameManager.Instance.totalPlayers : 2;
 
             var clientGo = new GameObject("NetworkClient (host)");
             clientGo.AddComponent<UdpTransport>();
@@ -66,7 +67,9 @@ namespace MMPong.Network
             client.listenPort = clientPort;
             client.pseudo = string.IsNullOrEmpty(pseudo) ? "host" : pseudo;
             client.OnLobbyReceived += OnLobbyReceived;
+            client.OnGameStarted += OnGameStarted;
             clientGo.AddComponent<ClientStateLogger>();
+            clientGo.AddComponent<DevReadyTrigger>().client = client;
 
             Debug.Log($"[GameBootstrap] Host démarré : {paddles.Length} paddle(s), serveur:{listenPort}, client:{clientPort}. Pseudo: {client.pseudo}");
         }
@@ -81,9 +84,17 @@ namespace MMPong.Network
             client.listenPort = clientPort;
             client.pseudo = string.IsNullOrEmpty(pseudo) ? "player" : pseudo;
             client.OnLobbyReceived += OnLobbyReceived;
+            client.OnGameStarted += OnGameStarted;
             clientGo.AddComponent<ClientStateLogger>();
+            clientGo.AddComponent<DevReadyTrigger>().client = client;
 
             Debug.Log($"[GameBootstrap] Client démarré, connexion à {serverIp}:{listenPort}. Pseudo: {client.pseudo}");
+        }
+
+        void OnGameStarted()
+        {
+            // Seam pour UI-2 : masquer le lobby / afficher le HUD. Le rendu réseau suit déjà l'état serveur.
+            Debug.Log("[GameBootstrap] Partie démarrée (START reçu).");
         }
 
         void OnLobbyReceived(string[] pseudos)
