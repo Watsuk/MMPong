@@ -41,7 +41,7 @@ public class PongBall : MonoBehaviour
 
     /// <summary>Dernier joueur ayant touché la balle (0 = Left, 1 = Right, -1 = aucun). Lu par le serveur.</summary>
     public int LastHitter => hasTouched
-        ? (lastTouchedPlayer == PongPlayer.PlayerLeft ? 0 : 1)
+        ? ((int)lastTouchedPlayer - 1)
         : -1;
 
     void Start() {
@@ -123,29 +123,41 @@ public class PongBall : MonoBehaviour
                 break;
 
             case "circle":
-            if (hasTouched && lastTouchedPlayer == PongPlayer.PlayerRight) {
-                // Right
-                scoreRight++;
-                if(scoreDisplay != null) scoreDisplay.MarquerPointDroit();
-                if (scoreRight >= winScore) {
-                   _State = PongBallState.PlayerRightWin;
-                } else {
-                   ResetBall();
+                if (hasTouched)
+                {
+                    if ((int)lastTouchedPlayer % 2 == 1)
+                    {                // Right
+                        scoreRight++;
+                        if (scoreDisplay != null) scoreDisplay.MarquerPointDroit();
+                        if (scoreRight >= winScore)
+                        {
+                            _State = PongBallState.PlayerRightWin;
+                        }
+                        else
+                        {
+                            ResetBall();
+                        }
+                    }
+                    else
+                    {
+                        // Left
+                        scoreLeft++;
+                        if (scoreDisplay != null) scoreDisplay.MarquerPointGauche();
+                        if (scoreLeft >= winScore)
+                        {
+                            _State = PongBallState.PlayerLeftWin;
+                        }
+                        else
+                        {
+                            ResetBall();
+                        }
+                    }
                 }
-            } else if (hasTouched && lastTouchedPlayer == PongPlayer.PlayerLeft) {
-                // Left
-                scoreLeft++;
-                if(scoreDisplay != null) scoreDisplay.MarquerPointGauche();
-                if (scoreLeft >= winScore) {
-                   _State = PongBallState.PlayerLeftWin;
-                } else {
-                   ResetBall();
-                }
-            } else
+                else
                 {
                     ResetBall();
                 }
                 break;
-      }
+        }
     }
 }

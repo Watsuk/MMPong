@@ -25,6 +25,9 @@ namespace MMPong.Network
         /// <summary>Émis lorsque la liste des joueurs (Lobby) est mise à jour par le serveur.</summary>
         public event Action<string[]> OnLobbyReceived;
 
+        /// <summary>Émis à la réception du START : la partie démarre (point de couture UI/jeu).</summary>
+        public event Action OnGameStarted;
+
         /// <summary>Identifiant attribué par le serveur, ou -1 tant que le WELCOME n'est pas reçu.</summary>
         public int PlayerId => myId;
 
@@ -33,6 +36,8 @@ namespace MMPong.Network
         int myId = -1;
         float currentDir;
         float sendTimer;
+        readonly SequenceGate stateGate = new SequenceGate();
+        ReliableChannel serverChannel;
 
         void Start()
         {
@@ -40,7 +45,8 @@ namespace MMPong.Network
             transport = GetComponent<UdpTransport>();
             transport.OnData += OnData;
             transport.Open(listenPort);
-            transport.Send(Protocol.Encode(Protocol.BuildJoin(pseudo)), server);
+            serverChannel = new ReliableChannel(bytes => transport.Send(bytes, server));
+            serverChannel.SendReliable(Protocol.BuildJoin(pseudo));
         }
 
         /// <summary>Envoie l'intention de déplacement courante au serveur (réseau pur).</summary>
@@ -50,26 +56,45 @@ namespace MMPong.Network
             transport.Send(Protocol.Encode(Protocol.BuildInput(myId, dir)), server);
         }
 
+        /// <summary>Signale au serveur que ce joueur est prêt (lobby). Envoyé de façon fiable.</summary>
+        public void SendReady()
+        {
+            if (myId < 0) return;
+            serverChannel.SendReliable(Protocol.BuildReady(myId));
+        }
+
         void OnData(byte[] data, IPEndPoint from)
         {
             Message m = Protocol.Decode(data);
+
+            if (m.type == MessageType.Ack) { serverChannel.HandleAck(Protocol.ParseAck(m)); return; }
+            if (m.reliable && !serverChannel.ReceiveReliable(m)) return;
+
             switch (m.type)
             {
                 case MessageType.Welcome:
+                    stateGate.Reset();
                     myId = Protocol.ParseWelcome(m);
                     Debug.Log($"[NetworkClient] WELCOME id={myId}");
                     break;
                 case MessageType.Lobby:
                     OnLobbyReceived?.Invoke(Protocol.ParseLobby(m));
                     break;
+                case MessageType.Start:
+                    OnGameStarted?.Invoke();
+                    break;
                 case MessageType.State:
-                    OnStateReceived?.Invoke(Protocol.ParseState(m));
+                    GameState s = Protocol.ParseState(m);
+                    if (!stateGate.Accept(s.seq)) break;
+                    OnStateReceived?.Invoke(s);
                     break;
             }
         }
 
         void Update()
         {
+            serverChannel?.Tick(Time.deltaTime);
+
             currentDir = Input.GetAxisRaw("Vertical");
 
             float step = 1f / sendRate;

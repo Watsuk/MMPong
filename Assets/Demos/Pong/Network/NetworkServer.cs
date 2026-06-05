@@ -14,6 +14,7 @@ namespace MMPong.Network
     {
         public int listenPort = 25000;
         public int tickRate = 30;
+        public int expectedPlayers = 2;
 
         /// <summary>Colle vers la simulation (posée par GameBootstrap). Sans elle, le serveur ne simule rien.</summary>
         public ServerGameBridge bridge;
@@ -23,7 +24,10 @@ namespace MMPong.Network
         UdpTransport transport;
         readonly Dictionary<int, IPEndPoint> clients = new Dictionary<int, IPEndPoint>();
         readonly Dictionary<int, string> playerNames = new Dictionary<int, string>();
+        readonly Dictionary<IPEndPoint, ReliableChannel> channels = new Dictionary<IPEndPoint, ReliableChannel>();
         readonly float[] pendingInput = new float[MaxPlayers];
+        readonly ReadyTracker ready = new ReadyTracker();
+        bool started;
         GameState state;
         uint tickSeq;
         float tickTimer;
@@ -38,11 +42,42 @@ namespace MMPong.Network
         void OnData(byte[] data, IPEndPoint from)
         {
             Message m = Protocol.Decode(data);
+
+            if (m.type == MessageType.Ack) { ChannelFor(from).HandleAck(Protocol.ParseAck(m)); return; }
+            if (m.reliable && !ChannelFor(from).ReceiveReliable(m)) return;
+
             switch (m.type)
             {
                 case MessageType.Join: HandleJoin(m, from); break;
                 case MessageType.Input: HandleInput(m); break;
+                case MessageType.Ready: HandleReady(m); break;
             }
+        }
+
+        void HandleReady(Message m)
+        {
+            ready.MarkReady(Protocol.ParseReady(m));
+            if (!started && ready.AllReady(expectedPlayers)) StartMatch();
+        }
+
+        void StartMatch()
+        {
+            started = true;
+            bridge?.StartMatch();
+            Debug.Log($"[NetworkServer] START ({ready.Count}/{expectedPlayers} prêts).");
+            Message start = Protocol.BuildStart();
+            foreach (var ep in clients.Values)
+                ChannelFor(ep).SendReliable(start);
+        }
+
+        ReliableChannel ChannelFor(IPEndPoint ep)
+        {
+            if (!channels.TryGetValue(ep, out var ch))
+            {
+                ch = new ReliableChannel(bytes => transport.Send(bytes, ep));
+                channels[ep] = ch;
+            }
+            return ch;
         }
 
         void HandleJoin(Message m, IPEndPoint from)
@@ -56,7 +91,7 @@ namespace MMPong.Network
                 return;
             }
 
-            transport.Send(Protocol.Encode(Protocol.BuildWelcome(id)), from);
+            ChannelFor(from).SendReliable(Protocol.BuildWelcome(id));
             Debug.Log($"[NetworkServer] client joined id={id} pseudo={pseudo} from {from}");
             
             BroadcastLobby();
@@ -69,7 +104,10 @@ namespace MMPong.Network
             {
                 pseudos[i] = playerNames.ContainsKey(i) ? playerNames[i] : "";
             }
-            Broadcast(Protocol.BuildLobby(pseudos));
+
+            Message lobby = Protocol.BuildLobby(pseudos);
+            foreach (var ep in clients.Values)
+                ChannelFor(ep).SendReliable(lobby);
         }
 
         void HandleInput(Message m)
@@ -88,11 +126,14 @@ namespace MMPong.Network
                 tickTimer -= step;
                 Tick();
             }
+
+            foreach (var ch in channels.Values)
+                ch.Tick(Time.deltaTime);
         }
 
         void Tick()
         {
-            if (bridge == null) return;
+            if (!started || bridge == null) return;
             bridge.ApplyInput(pendingInput);
             state = bridge.BuildState(++tickSeq);
             Broadcast(Protocol.BuildState(state));
