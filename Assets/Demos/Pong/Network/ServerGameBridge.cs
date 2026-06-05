@@ -20,6 +20,12 @@ namespace MMPong.Network
                     if (p != null) p.DrivenExternally = true;
         }
 
+        /// <summary>Démarre la partie (lance la balle). Appelé par le serveur à la réception du START.</summary>
+        public void StartMatch()
+        {
+            if (ball != null) ball.StartGameFromMenu();
+        }
+
         /// <summary>Applique la dernière intention reçue de chaque joueur à son paddle.</summary>
         public void ApplyInput(float[] pendingInput)
         {

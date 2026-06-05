@@ -89,6 +89,16 @@ namespace MMPong.Network
             Check("Reliable premier reçu = frais", fresh);
             Check("Reliable doublon ignoré", !rx.ReceiveReliable(welcome));
 
+            // Ready (round-trip) + ReadyTracker (quota de joueurs prêts)
+            var ready = Roundtrip(Protocol.BuildReady(2));
+            Check("Ready", Protocol.ParseReady(ready) == 2 && ready.reliable);
+            var tracker = new ReadyTracker();
+            Check("ReadyTracker marque premier", tracker.MarkReady(0));
+            Check("ReadyTracker ignore doublon", !tracker.MarkReady(0));
+            Check("ReadyTracker marque autre", tracker.MarkReady(1));
+            Check("ReadyTracker quota atteint", tracker.AllReady(2));
+            Check("ReadyTracker quota non atteint", !tracker.AllReady(3));
+
             if (ok == total) Debug.Log($"[ProtocolTest] {ok}/{total} OK");
             else Debug.LogError($"[ProtocolTest] {ok}/{total} OK — voir erreurs ci-dessus");
         }

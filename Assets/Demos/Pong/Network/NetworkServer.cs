@@ -14,6 +14,7 @@ namespace MMPong.Network
     {
         public int listenPort = 25000;
         public int tickRate = 30;
+        public int expectedPlayers = 2;
 
         /// <summary>Colle vers la simulation (posée par GameBootstrap). Sans elle, le serveur ne simule rien.</summary>
         public ServerGameBridge bridge;
@@ -25,6 +26,8 @@ namespace MMPong.Network
         readonly Dictionary<int, string> playerNames = new Dictionary<int, string>();
         readonly Dictionary<IPEndPoint, ReliableChannel> channels = new Dictionary<IPEndPoint, ReliableChannel>();
         readonly float[] pendingInput = new float[MaxPlayers];
+        readonly ReadyTracker ready = new ReadyTracker();
+        bool started;
         GameState state;
         uint tickSeq;
         float tickTimer;
@@ -47,7 +50,24 @@ namespace MMPong.Network
             {
                 case MessageType.Join: HandleJoin(m, from); break;
                 case MessageType.Input: HandleInput(m); break;
+                case MessageType.Ready: HandleReady(m); break;
             }
+        }
+
+        void HandleReady(Message m)
+        {
+            ready.MarkReady(Protocol.ParseReady(m));
+            if (!started && ready.AllReady(expectedPlayers)) StartMatch();
+        }
+
+        void StartMatch()
+        {
+            started = true;
+            bridge?.StartMatch();
+            Debug.Log($"[NetworkServer] START ({ready.Count}/{expectedPlayers} prêts).");
+            Message start = Protocol.BuildStart();
+            foreach (var ep in clients.Values)
+                ChannelFor(ep).SendReliable(start);
         }
 
         ReliableChannel ChannelFor(IPEndPoint ep)
@@ -113,7 +133,7 @@ namespace MMPong.Network
 
         void Tick()
         {
-            if (bridge == null) return;
+            if (!started || bridge == null) return;
             bridge.ApplyInput(pendingInput);
             state = bridge.BuildState(++tickSeq);
             Broadcast(Protocol.BuildState(state));
