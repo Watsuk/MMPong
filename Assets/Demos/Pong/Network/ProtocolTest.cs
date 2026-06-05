@@ -99,6 +99,46 @@ namespace MMPong.Network
             Check("ReadyTracker quota atteint", tracker.AllReady(2));
             Check("ReadyTracker quota non atteint", !tracker.AllReady(3));
 
+            // ClientRegistry (bijection id↔endpoint↔pseudo + capacité)
+            var epA = new System.Net.IPEndPoint(System.Net.IPAddress.Loopback, 1);
+            var epB = new System.Net.IPEndPoint(System.Net.IPAddress.Loopback, 2);
+            var reg = new ClientRegistry();
+            Check("Registry attribue 0", reg.Register(epA, "a") == 0);
+            Check("Registry attribue 1", reg.Register(epB, "b") == 1);
+            Check("Registry retrouve l'id", reg.TryFindId(epB, out int foundB) && foundB == 1);
+            string[] regPseudos = reg.Pseudos();
+            Check("Registry pseudos positionnels",
+                regPseudos.Length == ClientRegistry.MaxPlayers && regPseudos[0] == "a" && regPseudos[2] == "");
+            var regFull = new ClientRegistry();
+            for (int i = 0; i < ClientRegistry.MaxPlayers; i++)
+                regFull.Register(new System.Net.IPEndPoint(System.Net.IPAddress.Loopback, 100 + i), "p");
+            Check("Registry refuse au-delà capacité",
+                regFull.Register(new System.Net.IPEndPoint(System.Net.IPAddress.Loopback, 200), "x") == -1);
+
+            // MatchCoordinator (latch de démarrage unique)
+            var coord = new MatchCoordinator(2);
+            Check("Match pas démarré avant quota", !coord.TryStart(0));
+            Check("Match démarre au quota", coord.TryStart(1));
+            Check("Match ne redémarre pas", !coord.TryStart(2));
+            Check("Match Started", coord.Started);
+            var coordDup = new MatchCoordinator(2);
+            coordDup.TryStart(0);
+            Check("Match doublon n'atteint pas le quota", !coordDup.TryStart(0));
+
+            // ReliableHub (fiabilité multi-pairs : dédup par pair, broadcast par endpoint)
+            var ep1 = new System.Net.IPEndPoint(System.Net.IPAddress.Loopback, 11);
+            var ep2 = new System.Net.IPEndPoint(System.Net.IPAddress.Loopback, 12);
+            var hubSent = new System.Collections.Generic.List<byte[]>();
+            var hub = new ReliableHub((b, ep) => hubSent.Add(b));
+            var w1 = Protocol.BuildWelcome(0); w1.seq = 5;
+            var w2 = Protocol.BuildWelcome(1); w2.seq = 5;
+            Check("Hub ep1 frais", hub.ReceiveReliable(ep1, w1));
+            Check("Hub ep2 frais (même seq, autre pair)", hub.ReceiveReliable(ep2, w2));
+            Check("Hub doublon même pair ignoré", !hub.ReceiveReliable(ep1, w1));
+            hubSent.Clear();
+            hub.BroadcastReliable(new[] { ep1, ep2 }, Protocol.BuildStart());
+            Check("Hub broadcast = un envoi par pair", hubSent.Count == 2);
+
             if (ok == total) Debug.Log($"[ProtocolTest] {ok}/{total} OK");
             else Debug.LogError($"[ProtocolTest] {ok}/{total} OK — voir erreurs ci-dessus");
         }
