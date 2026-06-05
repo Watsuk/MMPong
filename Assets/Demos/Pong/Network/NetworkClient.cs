@@ -34,6 +34,7 @@ namespace MMPong.Network
         float currentDir;
         float sendTimer;
         readonly SequenceGate stateGate = new SequenceGate();
+        ReliableChannel serverChannel;
 
         void Start()
         {
@@ -41,7 +42,8 @@ namespace MMPong.Network
             transport = GetComponent<UdpTransport>();
             transport.OnData += OnData;
             transport.Open(listenPort);
-            transport.Send(Protocol.Encode(Protocol.BuildJoin(pseudo)), server);
+            serverChannel = new ReliableChannel(bytes => transport.Send(bytes, server));
+            serverChannel.SendReliable(Protocol.BuildJoin(pseudo));
         }
 
         /// <summary>Envoie l'intention de déplacement courante au serveur (réseau pur).</summary>
@@ -54,6 +56,10 @@ namespace MMPong.Network
         void OnData(byte[] data, IPEndPoint from)
         {
             Message m = Protocol.Decode(data);
+
+            if (m.type == MessageType.Ack) { serverChannel.HandleAck(Protocol.ParseAck(m)); return; }
+            if (m.reliable && !serverChannel.ReceiveReliable(m)) return;
+
             switch (m.type)
             {
                 case MessageType.Welcome:
@@ -74,6 +80,8 @@ namespace MMPong.Network
 
         void Update()
         {
+            serverChannel?.Tick(Time.deltaTime);
+
             currentDir = Input.GetAxisRaw("Vertical");
 
             float step = 1f / sendRate;
