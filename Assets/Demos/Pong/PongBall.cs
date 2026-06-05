@@ -157,6 +157,7 @@ public class PongBall : MonoBehaviour
                 {
                     ResetBall();
                 }
+                break;
         }
     }
 }
