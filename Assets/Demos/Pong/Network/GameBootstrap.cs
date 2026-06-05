@@ -70,6 +70,7 @@ namespace MMPong.Network
             client.OnGameStarted += OnGameStarted;
             clientGo.AddComponent<ClientStateLogger>();
             clientGo.AddComponent<DevReadyTrigger>().client = client;
+            clientGo.AddComponent<ClientStateApplier>();
 
             Debug.Log($"[GameBootstrap] Host démarré : {paddles.Length} paddle(s), serveur:{listenPort}, client:{clientPort}. Pseudo: {client.pseudo}");
         }
@@ -87,6 +88,7 @@ namespace MMPong.Network
             client.OnGameStarted += OnGameStarted;
             clientGo.AddComponent<ClientStateLogger>();
             clientGo.AddComponent<DevReadyTrigger>().client = client;
+            clientGo.AddComponent<ClientStateApplier>();
 
             Debug.Log($"[GameBootstrap] Client démarré, connexion à {serverIp}:{listenPort}. Pseudo: {client.pseudo}");
         }
