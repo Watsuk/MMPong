@@ -33,6 +33,7 @@ namespace MMPong.Network
         int myId = -1;
         float currentDir;
         float sendTimer;
+        readonly SequenceGate stateGate = new SequenceGate();
 
         void Start()
         {
@@ -56,6 +57,7 @@ namespace MMPong.Network
             switch (m.type)
             {
                 case MessageType.Welcome:
+                    stateGate.Reset();
                     myId = Protocol.ParseWelcome(m);
                     Debug.Log($"[NetworkClient] WELCOME id={myId}");
                     break;
@@ -63,7 +65,9 @@ namespace MMPong.Network
                     OnLobbyReceived?.Invoke(Protocol.ParseLobby(m));
                     break;
                 case MessageType.State:
-                    OnStateReceived?.Invoke(Protocol.ParseState(m));
+                    GameState s = Protocol.ParseState(m);
+                    if (!stateGate.Accept(s.seq)) break;
+                    OnStateReceived?.Invoke(s);
                     break;
             }
         }

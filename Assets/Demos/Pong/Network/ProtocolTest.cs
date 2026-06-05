@@ -51,6 +51,15 @@ namespace MMPong.Network
             var start = Roundtrip(Protocol.BuildStart());
             Check("Start", start.type == MessageType.Start && start.reliable);
 
+            // SequenceGate (filtre anti-paquet-périmé)
+            var gate = new SequenceGate();
+            Check("Gate accepte premier seq", gate.Accept(1));
+            Check("Gate rejette doublon", !gate.Accept(1));
+            Check("Gate rejette périmé", !gate.Accept(0));
+            Check("Gate accepte plus frais", gate.Accept(2));
+            gate.Reset();
+            Check("Gate accepte après Reset", gate.Accept(1));
+
             if (ok == total) Debug.Log($"[ProtocolTest] {ok}/{total} OK");
             else Debug.LogError($"[ProtocolTest] {ok}/{total} OK — voir erreurs ci-dessus");
         }
