@@ -32,6 +32,10 @@ public class PongGameManager : MonoBehaviour
         }
         instance = this;
         gameObject.AddComponent<MMPong.BonusManager>();
+
+        // Attache le CameraShaker à la caméra principale (auto-setup, pas besoin de le faire dans l'éditeur)
+        if (Camera.main != null && Camera.main.GetComponent<CameraShaker>() == null)
+            Camera.main.gameObject.AddComponent<CameraShaker>();
     }
 
     void Start()

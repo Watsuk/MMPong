@@ -214,6 +214,9 @@ public class PongBall : MonoBehaviour
                 ApplyVisualState(0);
                 Direction = Vector3.Reflect(Direction, c.contacts[0].normal).normalized;
                 Speed += 0.5f;
+                // Secousse proportionnelle à la vitesse (plus la balle va vite, plus ça tremble)
+                if (CameraShaker.Instance != null)
+                    CameraShaker.Instance.Shake(Mathf.Clamp(Speed * 0.02f, 0.05f, 0.3f), 0.1f);
                 break;
             case "PaddleRight":
                 hasTouched = true;
@@ -221,6 +224,9 @@ public class PongBall : MonoBehaviour
                 ApplyVisualState(1);
                 Direction = Vector3.Reflect(Direction, c.contacts[0].normal).normalized;
                 Speed += 0.5f;
+                // Secousse proportionnelle à la vitesse
+                if (CameraShaker.Instance != null)
+                    CameraShaker.Instance.Shake(Mathf.Clamp(Speed * 0.02f, 0.05f, 0.3f), 0.1f);
                 break;
 
             case "circle":
@@ -234,6 +240,9 @@ public class PongBall : MonoBehaviour
                     {                // Right
                         scoreRight++;
                         if (scoreDisplay != null) scoreDisplay.MarquerPointDroit();
+                        // Secousse forte quand un point est marqué
+                        if (CameraShaker.Instance != null)
+                            CameraShaker.Instance.Shake(0.25f, 0.2f);
                         if (scoreRight >= winScore)
                         {
                             _State = PongBallState.PlayerRightWin;
@@ -248,6 +257,9 @@ public class PongBall : MonoBehaviour
                         // Left
                         scoreLeft++;
                         if (scoreDisplay != null) scoreDisplay.MarquerPointGauche();
+                        // Secousse forte quand un point est marqué
+                        if (CameraShaker.Instance != null)
+                            CameraShaker.Instance.Shake(0.25f, 0.2f);
                         if (scoreLeft >= winScore)
                         {
                             _State = PongBallState.PlayerLeftWin;
