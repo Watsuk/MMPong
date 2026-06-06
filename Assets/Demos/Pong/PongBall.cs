@@ -16,8 +16,12 @@ public class PongBall : MonoBehaviour
     public Texture waterTexture;
     public Texture fireTexture;
 
+    [Header("SFX")]
+    public AudioClip wallBounceClip;
+
     private Renderer balleRenderer;
     private TrailRenderer trail;
+    private AudioSource audioSource;
     public float Speed = 1;
     private float BaseSpeed;
 
@@ -48,6 +52,16 @@ public class PongBall : MonoBehaviour
     void Start() {
       BaseSpeed = Speed;
       balleRenderer = GetComponent<Renderer>();
+
+      // Audio
+      audioSource = GetComponent<AudioSource>();
+      if (audioSource == null)
+          audioSource = gameObject.AddComponent<AudioSource>();
+      audioSource.playOnAwake = false;
+
+      // Génère un bip procédural par défaut pour le rebond mur si aucun clip n'est assigné
+      if (wallBounceClip == null)
+          wallBounceClip = GenerateBeep(220f, 0.08f);  // bip grave et court
 
       // Récupère un TrailRenderer existant ou en crée un automatiquement
       trail = GetComponent<TrailRenderer>();
@@ -86,6 +100,23 @@ public class PongBall : MonoBehaviour
           }
       }
       ResetBall(false); // Do not launch immediately
+    }
+
+    /// <summary>Génère un AudioClip mono synthétique (onde sinusoïdale).</summary>
+    static AudioClip GenerateBeep(float frequency, float duration, float volume = 0.4f)
+    {
+        int sampleRate = 44100;
+        int numSamples = Mathf.CeilToInt(sampleRate * duration);
+        float[] samples = new float[numSamples];
+        for (int i = 0; i < numSamples; i++)
+        {
+            float t = (float)i / sampleRate;
+            float envelope = 1f - (t / duration); // fondu linéaire
+            samples[i] = Mathf.Sin(2f * Mathf.PI * frequency * t) * volume * envelope;
+        }
+        AudioClip clip = AudioClip.Create("beep_" + frequency, numSamples, 1, sampleRate, false);
+        clip.SetData(samples, 0);
+        return clip;
     }
 
     private PongPlayer lastTouchedPlayer;
@@ -193,6 +224,10 @@ public class PongBall : MonoBehaviour
                 break;
 
             case "circle":
+                // Son de rebond sur le mur extérieur (joué systématiquement, avant la logique de score)
+                if (wallBounceClip != null && audioSource != null)
+                    audioSource.PlayOneShot(wallBounceClip, 0.5f);
+
                 if (hasTouched)
                 {
                     if ((int)lastTouchedPlayer % 2 == 1)

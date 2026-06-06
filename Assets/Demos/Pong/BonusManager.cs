@@ -11,9 +11,14 @@ namespace MMPong
         public int BonusCircleIndex { get; private set; }
         public float BonusAngle { get; private set; }
 
+        [Header("SFX")]
+        public AudioClip bonusSpawnClip;
+        public AudioClip bonusPickupClip;
+
         private float spawnTimer = 2f; // Réduit à 2 secondes pour tester plus vite !
         private float despawnTimer = 5f;
         private GameObject bonusVisual;
+        private AudioSource audioSource;
 
         void Awake()
         {
@@ -22,14 +27,69 @@ namespace MMPong
                 Instance = this;
                 Debug.Log("🟢 [BonusManager] Composant correctement attaché et actif ! Apparition du bonus dans 2 secondes...");
             }
+
+            // Audio : crée un AudioSource s'il n'en existe pas
+            audioSource = GetComponent<AudioSource>();
+            if (audioSource == null)
+                audioSource = gameObject.AddComponent<AudioSource>();
+            audioSource.playOnAwake = false;
+
+            // Génère des sons procéduraux par défaut si aucun clip n'est assigné
+            if (bonusSpawnClip == null)
+                bonusSpawnClip = GenerateBeep(660f, 0.12f, 0.3f);   // bip aigu et court
+            if (bonusPickupClip == null)
+                bonusPickupClip = GeneratePowerUp(0.25f, 0.4f);      // son ascendant de power-up
+        }
+
+        /// <summary>Génère un bip sinusoïdal simple.</summary>
+        static AudioClip GenerateBeep(float frequency, float duration, float volume = 0.4f)
+        {
+            int sr = 44100;
+            int n = Mathf.CeilToInt(sr * duration);
+            float[] s = new float[n];
+            for (int i = 0; i < n; i++)
+            {
+                float t = (float)i / sr;
+                float env = 1f - (t / duration);
+                s[i] = Mathf.Sin(2f * Mathf.PI * frequency * t) * volume * env;
+            }
+            AudioClip c = AudioClip.Create("bonus_beep", n, 1, sr, false);
+            c.SetData(s, 0);
+            return c;
+        }
+
+        /// <summary>Génère un son ascendant de power-up (fréquence qui monte).</summary>
+        static AudioClip GeneratePowerUp(float duration, float volume = 0.4f)
+        {
+            int sr = 44100;
+            int n = Mathf.CeilToInt(sr * duration);
+            float[] s = new float[n];
+            for (int i = 0; i < n; i++)
+            {
+                float t = (float)i / sr;
+                float freq = Mathf.Lerp(400f, 1200f, t / duration); // monte de 400 Hz à 1200 Hz
+                float env = 1f - (t / duration) * 0.5f; // fondu léger
+                s[i] = Mathf.Sin(2f * Mathf.PI * freq * t) * volume * env;
+            }
+            AudioClip c = AudioClip.Create("bonus_powerup", n, 1, sr, false);
+            c.SetData(s, 0);
+            return c;
         }
 
         // Called by ClientStateApplier (Client)
         public void SyncNetworkState(bool hasBonus, int circleIndex, float angle)
         {
+            // Détecte les changements d'état pour jouer les sons côté client
+            bool wasActive = HasBonus;
             HasBonus = hasBonus;
             BonusCircleIndex = circleIndex;
             BonusAngle = angle;
+
+            if (!wasActive && hasBonus)
+                PlayClip(bonusSpawnClip);    // le bonus vient d'apparaître
+            else if (wasActive && !hasBonus)
+                PlayClip(bonusPickupClip);   // le bonus vient d'être ramassé ou a disparu
+
             UpdateVisuals();
         }
 
@@ -56,6 +116,7 @@ namespace MMPong
                     }
                     BonusAngle = Random.Range(0f, 360f);
                     despawnTimer = 5f;
+                    PlayClip(bonusSpawnClip);
                     Debug.Log($"🟢 [BonusManager] SPAWN BONUS! Cercle: {BonusCircleIndex}, Angle: {BonusAngle}");
                 }
             }
@@ -89,6 +150,7 @@ namespace MMPong
                         // Take bonus
                         HasBonus = false;
                         spawnTimer = 10f;
+                        PlayClip(bonusPickupClip);
                         StartCoroutine(ApplySpeedAdvantage(paddle));
                         break;
                     }
@@ -140,6 +202,12 @@ namespace MMPong
                     bonusVisual.SetActive(false);
                 }
             }
+        }
+
+        void PlayClip(AudioClip clip)
+        {
+            if (clip != null && audioSource != null)
+                audioSource.PlayOneShot(clip);
         }
     }
 }
