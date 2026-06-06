@@ -48,7 +48,31 @@ public class PongBall : MonoBehaviour
     void Start() {
       BaseSpeed = Speed;
       balleRenderer = GetComponent<Renderer>();
+
+      // Récupère un TrailRenderer existant ou en crée un automatiquement
       trail = GetComponent<TrailRenderer>();
+      if (trail == null)
+          trail = gameObject.AddComponent<TrailRenderer>();
+
+      // Configuration du Trail Renderer par code (pas besoin de le faire manuellement dans Unity)
+      trail.time = 0.3f;          // Durée de vie de la traînée en secondes
+      trail.widthMultiplier = 0.6f; // Largeur de base de la traînée
+
+      // Courbe de largeur : large à la tête, zéro à la queue
+      AnimationCurve widthCurve = new AnimationCurve(
+          new Keyframe(0f, 1f),   // début (tête) : largeur pleine
+          new Keyframe(1f, 0f)    // fin (queue) : s'efface
+      );
+      trail.widthCurve = widthCurve;
+
+      // Matériau compatible avec tous les pipelines de rendu (URP, HDRP, Built-in)
+      trail.material = new Material(Shader.Find("Sprites/Default"));
+
+      // Couleur initiale : blanc → transparent
+      trail.startColor = Color.white;
+      trail.endColor = new Color(1f, 1f, 1f, 0f);
+      trail.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+
       if (scoreDisplay == null)
       {
           GameObject scoreManager = GameObject.Find("ScoreManager");
