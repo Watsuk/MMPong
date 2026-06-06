@@ -102,39 +102,60 @@ namespace MMPong
                                 FindAnyObjectByType<MMPong.Network.NetworkClient>() != null;
             
             if (isClientOnly)
-                return;
-
-            if (!HasBonus)
             {
-                spawnTimer -= Time.deltaTime;
-                if (spawnTimer <= 0f)
-                {
-                    HasBonus = true;
-                    if (PongGameManager.Instance != null && PongGameManager.Instance.CircleRadii != null)
-                    {
-                        BonusCircleIndex = Random.Range(0, PongGameManager.Instance.CircleRadii.Length);
-                    }
-                    BonusAngle = Random.Range(0f, 360f);
-                    despawnTimer = 5f;
-                    PlayClip(bonusSpawnClip);
-                    Debug.Log($"🟢 [BonusManager] SPAWN BONUS! Cercle: {BonusCircleIndex}, Angle: {BonusAngle}");
-                }
+                // Le client ne gère pas la logique de spawn/collision,
+                // mais affiche et anime quand même le bonus (via SyncNetworkState)
             }
             else
             {
-                despawnTimer -= Time.deltaTime;
-                if (despawnTimer <= 0f)
+                if (!HasBonus)
                 {
-                    HasBonus = false;
-                    spawnTimer = 2f; // Keep at 2s for fast testing
-                    Debug.Log("🔴 [BonusManager] Le bonus a disparu (timeout).");
+                    spawnTimer -= Time.deltaTime;
+                    if (spawnTimer <= 0f)
+                    {
+                        HasBonus = true;
+                        if (PongGameManager.Instance != null && PongGameManager.Instance.CircleRadii != null)
+                        {
+                            BonusCircleIndex = Random.Range(0, PongGameManager.Instance.CircleRadii.Length);
+                        }
+                        BonusAngle = Random.Range(0f, 360f);
+                        despawnTimer = 5f;
+                        PlayClip(bonusSpawnClip);
+                        Debug.Log($"🟢 [BonusManager] SPAWN BONUS! Cercle: {BonusCircleIndex}, Angle: {BonusAngle}");
+                    }
                 }
                 else
                 {
-                    CheckCollisions();
+                    despawnTimer -= Time.deltaTime;
+                    if (despawnTimer <= 0f)
+                    {
+                        HasBonus = false;
+                        spawnTimer = 2f;
+                        Debug.Log("🔴 [BonusManager] Le bonus a disparu (timeout).");
+                    }
+                    else
+                    {
+                        CheckCollisions();
+                    }
                 }
             }
-            UpdateVisuals(); // Server needs visuals too if it's Host
+
+            // Visuels et animation pour tout le monde (client, host, local)
+            UpdateVisuals();
+            AnimateVisuals();
+        }
+
+        void AnimateVisuals()
+        {
+            if (HasBonus && bonusVisual != null)
+            {
+                // Rotation continue sur tous les axes pour un effet 3D
+                bonusVisual.transform.Rotate(new Vector3(45f, 90f, 30f) * Time.deltaTime);
+
+                // Pulsation sinusoïdale (oscillation douce de la taille)
+                float pulse = 1.5f + Mathf.Sin(Time.time * 6f) * 0.3f;
+                bonusVisual.transform.localScale = new Vector3(pulse, pulse, pulse);
+            }
         }
 
         void CheckCollisions()
@@ -182,7 +203,8 @@ namespace MMPong
                     Renderer r = bonusVisual.GetComponent<Renderer>();
                     if (r != null)
                     {
-                        r.material = new Material(Shader.Find("Unlit/Color"));
+                        // Utilise le matériau par défaut et le colorie en vert.
+                        // Évite Shader.Find("Unlit/Color") qui échoue sous URP/HDRP.
                         r.material.color = Color.green;
                     }
                 }
