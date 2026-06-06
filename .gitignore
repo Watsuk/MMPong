@@ -47,3 +47,7 @@ sysinfo.txt
 # === Windows (coéquipiers éventuels) ===
 Thumbs.db
 ehthumbs.db
+
+# === Local Documentation ===
+docs/gamefeel-improvements.md
+
