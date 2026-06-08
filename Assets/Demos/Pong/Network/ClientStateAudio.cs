@@ -21,6 +21,16 @@ namespace MMPong.Network
         [Range(0f, 1f)]
         public float volume = 1f;
 
+        [Header("Camera Shake")]
+        [Tooltip("Intensité du shake lors d'un impact paddle (même valeur pour tous les clients)")]
+        public float paddleShakeIntensity = 0.12f;
+        [Tooltip("Durée du shake lors d'un impact paddle")]
+        public float paddleShakeDuration = 0.1f;
+        [Tooltip("Intensité du shake lors d'un but")]
+        public float scoreShakeIntensity = 0.25f;
+        [Tooltip("Durée du shake lors d'un but")]
+        public float scoreShakeDuration = 0.2f;
+
         NetworkClient client;
         PongBall localBall;
         AudioSource audioSource;
@@ -75,7 +85,11 @@ namespace MMPong.Network
             }
 
             if (s.ballOwner != lastBallOwner && s.ballOwner >= 0)
+            {
                 PlaySideHitClip(s.ballOwner);
+                if (CameraShaker.Instance != null)
+                    CameraShaker.Instance.Shake(paddleShakeIntensity, paddleShakeDuration);
+            }
 
             if (ScoresChanged(s.scores, lastScores))
             {
@@ -87,6 +101,9 @@ namespace MMPong.Network
 
                 if (leftScoreClip == null && rightScoreClip == null)
                     PlayScoreClip(scoreClip);
+
+                if (CameraShaker.Instance != null)
+                    CameraShaker.Instance.Shake(scoreShakeIntensity, scoreShakeDuration);
             }
 
             if (gameOverClip != null && s.phase == GamePhase.GameOver && lastPhase != GamePhase.GameOver)
@@ -106,7 +123,11 @@ namespace MMPong.Network
             }
 
             if (s.ballOwner != lastBallOwner && s.ballOwner >= 0)
+            {
                 PlaySideHitClip(s.ballOwner);
+                if (CameraShaker.Instance != null)
+                    CameraShaker.Instance.Shake(paddleShakeIntensity, paddleShakeDuration);
+            }
 
             if (ScoresChanged(s.scores, lastScores))
             {
@@ -118,6 +139,9 @@ namespace MMPong.Network
 
                 if (leftScoreClip == null && rightScoreClip == null)
                     PlayScoreClip(scoreClip);
+
+                if (CameraShaker.Instance != null)
+                    CameraShaker.Instance.Shake(scoreShakeIntensity, scoreShakeDuration);
             }
 
             if (gameOverClip != null && s.phase == GamePhase.GameOver && lastPhase != GamePhase.GameOver)

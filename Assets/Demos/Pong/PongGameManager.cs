@@ -203,7 +203,8 @@ public class PongGameManager : MonoBehaviour
     {
         int existingCount = FindObjectsByType<PongPaddle>(FindObjectsSortMode.None).Length;
 
-        int playersToSpawn = Mathf.Min(totalPlayers, spawnPoints.Count);
+        // Calcule le nombre de paddles à instancier en soustrayant ceux déjà présents dans la scène
+        int playersToSpawn = Mathf.Min(Mathf.Max(0, totalPlayers - existingCount), spawnPoints.Count);
 
         for (int i = 0; i < playersToSpawn; i++)
         {
