@@ -118,11 +118,16 @@ public class PongGameManager : MonoBehaviour
     {
         for (int i = 0; i < allPaddles.Count; i++)
         {
-            int randomCircle = Random.Range(0, CircleRadii.Length);
-            float radius = CircleRadii[randomCircle];
+            // Assignation DÉTERMINISTE basée sur l'id du joueur (et non Random) : host et clients
+            // calculent ainsi le MÊME cercle pour chaque paddle → placement identique sur toutes
+            // les machines. Un Random ici divergerait d'un PC à l'autre (l'angle est synchronisé
+            // par le serveur, mais le rayon est local → positions différentes).
+            int circle = ((int)allPaddles[i].Player - 1) % CircleRadii.Length;
+            if (circle < 0) circle = 0;
+            float radius = CircleRadii[circle];
 
-            paddleToCircleIndex[allPaddles[i]] = randomCircle;
-            allPaddles[i].SetCircle(randomCircle, radius, CenterPoint);
+            paddleToCircleIndex[allPaddles[i]] = circle;
+            allPaddles[i].SetCircle(circle, radius, CenterPoint);
         }
     }
 
@@ -164,7 +169,10 @@ public class PongGameManager : MonoBehaviour
     {
         int existingCount = FindObjectsByType<PongPaddle>(FindObjectsSortMode.None).Length;
 
-        int playersToSpawn = Mathf.Min(totalPlayers, spawnPoints.Count);
+        // Des paddles sont déjà placées dans la scène (Player 1 et 2). On ne spawne que le
+        // complément pour atteindre totalPlayers — sinon on cumule (pré-placées + totalPlayers)
+        // et on obtient trop de paddles (ex. 2 pré-placées + 2 = 4).
+        int playersToSpawn = Mathf.Clamp(totalPlayers - existingCount, 0, spawnPoints.Count);
 
         for (int i = 0; i < playersToSpawn; i++)
         {
