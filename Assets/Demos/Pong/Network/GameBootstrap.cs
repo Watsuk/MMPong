@@ -16,13 +16,55 @@ namespace MMPong.Network
     {
         public GameMode mode = GameMode.Local;
         public int listenPort = 25000;   // port du serveur (host)
-        public int clientPort = 26000;   // port local du client (≠ serveur pour cohabiter sur une même machine)
+        // Obsolète : le client utilise désormais un port local éphémère (voir NetworkClient.listenPort = 0)
+        // pour permettre plusieurs clients sur une même machine. Conservé pour compat inspecteur.
+        public int clientPort = 26000;
         public string serverIp = "127.0.0.1";  // IP du serveur à rejoindre en mode Client
 
         void Start()
         {
-            // Do nothing on Start. Wait for the Start Menu UI to call StartGame(pseudo).
+            // Le démarrage réel attend que le menu (PongStartUI) appelle StartGame(pseudo).
+            // En revanche, sous Multiplayer Play Mode (test multi-fenêtres sans build), on
+            // résout ici le rôle de cette fenêtre depuis ses tags MPPM → « Play et c'est parti ».
+#if UNITY_EDITOR
+            ApplyMultiplayerPlayModeRole();
+#endif
         }
+
+#if UNITY_EDITOR
+        /// <summary>
+        /// Force <see cref="mode"/> selon les tags Multiplayer Play Mode de la fenêtre courante :
+        /// tag « Client » → Client, tag « Host » → Host. Sans tag pertinent, on garde le mode de
+        /// l'inspecteur (usage normal / build inchangé). Accès par réflexion pour ne pas créer de
+        /// dépendance dure au package MPPM (le code compile même s'il n'est pas installé).
+        /// </summary>
+        void ApplyMultiplayerPlayModeRole()
+        {
+            foreach (string tag in GetMultiplayerPlayModeTags())
+            {
+                if (string.Equals(tag, "Client", System.StringComparison.OrdinalIgnoreCase))
+                {
+                    mode = GameMode.Client;
+                    Debug.Log("[GameBootstrap] MPPM : tag « Client » détecté → mode Client.");
+                    return;
+                }
+                if (string.Equals(tag, "Host", System.StringComparison.OrdinalIgnoreCase))
+                {
+                    mode = GameMode.Host;
+                    Debug.Log("[GameBootstrap] MPPM : tag « Host » détecté → mode Host.");
+                    return;
+                }
+            }
+        }
+
+        static string[] GetMultiplayerPlayModeTags()
+        {
+            var type = System.Type.GetType("Unity.Multiplayer.Playmode.CurrentPlayer, Unity.Multiplayer.Playmode");
+            var method = type?.GetMethod("ReadOnlyTags",
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+            return method?.Invoke(null, null) as string[] ?? System.Array.Empty<string>();
+        }
+#endif
 
         public void StartGame(string pseudo)
         {
@@ -64,7 +106,8 @@ namespace MMPong.Network
             var client = clientGo.AddComponent<NetworkClient>();
             client.serverIp = "127.0.0.1";   // le host rejoint son propre serveur en local
             client.serverPort = listenPort;
-            client.listenPort = clientPort;
+            // port client laissé éphémère (listenPort = 0) pour cohabiter avec d'autres clients
+            // sur la même machine. Le host affiche la simulation réelle (pas de RemoteDisplay ici).
             client.pseudo = string.IsNullOrEmpty(pseudo) ? "host" : pseudo;
             client.OnLobbyReceived += OnLobbyReceived;
             client.OnGameStarted += OnGameStarted;
@@ -76,15 +119,25 @@ namespace MMPong.Network
 
         void SetupClient(string pseudo)
         {
+            // Le client n'est qu'un afficheur : balle et paddles sont pilotés par l'état serveur,
+            // jamais simulés localement. On bascule la scène en RemoteDisplay (miroir du host qui,
+            // lui, pose DrivenExternally via ServerGameBridge).
+            PongPaddle[] paddles = FindObjectsByType<PongPaddle>(FindObjectsSortMode.None);
+            foreach (var p in paddles)
+                if (p != null) p.RemoteDisplay = true;
+            PongBall ball = FindFirstObjectByType<PongBall>();
+            if (ball != null) ball.RemoteDisplay = true;
+
             var clientGo = new GameObject("NetworkClient");
             clientGo.AddComponent<UdpTransport>();
             var client = clientGo.AddComponent<NetworkClient>();
             client.serverIp = serverIp;
             client.serverPort = listenPort;
-            client.listenPort = clientPort;
+            // port client laissé éphémère (listenPort = 0) pour cohabiter sur la même machine.
             client.pseudo = string.IsNullOrEmpty(pseudo) ? "player" : pseudo;
             client.OnLobbyReceived += OnLobbyReceived;
             client.OnGameStarted += OnGameStarted;
+            clientGo.AddComponent<ClientStateApplier>();   // applique les STATE reçus à la scène
             clientGo.AddComponent<ClientStateLogger>();
             clientGo.AddComponent<DevReadyTrigger>().client = client;
 

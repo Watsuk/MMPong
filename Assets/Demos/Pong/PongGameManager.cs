@@ -116,52 +116,22 @@ public class PongGameManager : MonoBehaviour
 
     void AssignPaddlesToCircles()
     {
-        // Séparer les paddles par couleur (impair = bleu/gauche, pair = rouge/droit)
-        List<PongPaddle> bluePaddles = new List<PongPaddle>();
-        List<PongPaddle> redPaddles = new List<PongPaddle>();
+        // Spawn par PAIRE de joueurs sur un axe (cercle) donné :
+        //   joueurs 1 & 2 → axe BLEU, 3 & 4 → axe VERT, 5 & 6 → axe ROUGE.
+        // Les cercles sont dessinés avec colors = { red(0), green(1), blue(2) } dans
+        // CreateCircleVisuals, donc bleu/vert/rouge correspondent aux index de cercle [2, 1, 0].
+        // Attribution DÉTERMINISTE (basée sur l'id du joueur, sans Random) → placement identique
+        // sur le host et les clients (le serveur synchronise l'angle des paddles, pas le rayon).
+        int[] circleByPair = { 2, 1, 0 }; // bleu, vert, rouge
 
         foreach (PongPaddle p in allPaddles)
         {
-            if ((int)p.Player % 2 == 1)
-                bluePaddles.Add(p);
-            else
-                redPaddles.Add(p);
-        }
-
-        // Distribuer les paddles bleus sur des cercles différents
-        AssignGroupToCircles(bluePaddles);
-
-        // Distribuer les paddles rouges sur des cercles différents
-        AssignGroupToCircles(redPaddles);
-    }
-
-    void AssignGroupToCircles(List<PongPaddle> group)
-    {
-        // Créer une liste d'indices de cercles disponibles
-        List<int> availableCircles = new List<int>();
-        for (int i = 0; i < CircleRadii.Length; i++)
-        {
-            availableCircles.Add(i);
-        }
-
-        // Mélanger les cercles pour garder un côté aléatoire
-        // Fisher-Yates shuffle
-        for (int i = availableCircles.Count - 1; i > 0; i--)
-        {
-            int r = Random.Range(0, i + 1);
-            int tmp = availableCircles[i];
-            availableCircles[i] = availableCircles[r];
-            availableCircles[r] = tmp;
-        }
-
-        for (int i = 0; i < group.Count; i++)
-        {
-            // Si on a plus de paddles que de cercles, on boucle sur les cercles disponibles
-            int circleIndex = availableCircles[i % CircleRadii.Length];
+            int pairIndex = ((int)p.Player - 1) / 2;              // 1&2 → 0, 3&4 → 1, 5&6 → 2
+            int circleIndex = circleByPair[pairIndex % circleByPair.Length] % CircleRadii.Length;
             float radius = CircleRadii[circleIndex];
 
-            paddleToCircleIndex[group[i]] = circleIndex;
-            group[i].SetCircle(circleIndex, radius, CenterPoint);
+            paddleToCircleIndex[p] = circleIndex;
+            p.SetCircle(circleIndex, radius, CenterPoint);
         }
     }
 
@@ -203,8 +173,10 @@ public class PongGameManager : MonoBehaviour
     {
         int existingCount = FindObjectsByType<PongPaddle>(FindObjectsSortMode.None).Length;
 
-        // Calcule le nombre de paddles à instancier en soustrayant ceux déjà présents dans la scène
-        int playersToSpawn = Mathf.Min(Mathf.Max(0, totalPlayers - existingCount), spawnPoints.Count);
+        // Des paddles sont déjà placées dans la scène (Player 1 et 2). On ne spawne que le
+        // complément pour atteindre totalPlayers — sinon on cumule (pré-placées + totalPlayers)
+        // et on obtient trop de paddles (ex. 2 pré-placées + 2 = 4).
+        int playersToSpawn = Mathf.Clamp(totalPlayers - existingCount, 0, spawnPoints.Count);
 
         for (int i = 0; i < playersToSpawn; i++)
         {

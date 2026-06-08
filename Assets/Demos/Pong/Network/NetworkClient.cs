@@ -1,6 +1,7 @@
 using System;
 using System.Net;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace MMPong.Network
 {
@@ -15,7 +16,11 @@ namespace MMPong.Network
     {
         public string serverIp = "127.0.0.1";
         public int serverPort = 25000;
-        public int listenPort = 26000;
+        // 0 = port local éphémère attribué par l'OS. Indispensable pour que plusieurs clients
+        // cohabitent sur une même machine : un port fixe ferait apparaître tous les clients au
+        // serveur sous le même endpoint (127.0.0.1:port) et les fusionnerait sur un seul joueur.
+        // Le serveur répond toujours à l'endpoint source observé → aucun port fixe n'est requis.
+        public int listenPort = 0;
         public string pseudo = "player";
         public int sendRate = 30;
 
@@ -95,7 +100,8 @@ namespace MMPong.Network
         {
             serverChannel?.Tick(Time.deltaTime);
 
-            currentDir = Input.GetAxisRaw("Vertical");
+            // Contrôle réseau unifié : flèches ↑/↓ uniquement, pour TOUS les joueurs (↑ = +1, ↓ = -1).
+            currentDir = ReadArrowDirection();
 
             float step = 1f / sendRate;
             sendTimer += Time.deltaTime;
@@ -104,6 +110,17 @@ namespace MMPong.Network
                 sendTimer -= step;
                 SendInput(currentDir);
             }
+        }
+
+        /// <summary>Direction verticale à partir des seules flèches ↑/↓ (↑ = +1, ↓ = -1, sinon 0).</summary>
+        static float ReadArrowDirection()
+        {
+            var kb = Keyboard.current;
+            if (kb == null) return 0f;
+            float dir = 0f;
+            if (kb.upArrowKey.isPressed) dir += 1f;
+            if (kb.downArrowKey.isPressed) dir -= 1f;
+            return dir;
         }
 
         void OnDisable()
