@@ -310,7 +310,7 @@ Transform:
   m_GameObject: {fileID: 330585543}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: -40.55}
+  m_LocalPosition: {x: 0, y: 0, z: -20}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -393,8 +393,8 @@ MonoBehaviour:
   spawnPoints:
   - {fileID: 1831822182}
   - {fileID: 1710658413}
-  - {fileID: 1151381957}
-  - {fileID: 796883190}
+  - {fileID: 1710658413}
+  - {fileID: 1710658413}
   totalPlayers: 2
   CircleRadii:
   - 5
@@ -2273,10 +2273,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7bcdca62482d4627ae2e4f71ef110659, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MMPong.Network.GameBootstrap
-  mode: 0
+  mode: 2
   listenPort: 25000
   clientPort: 26000
-  serverIp: 127.0.0.1
+  serverIp: 172.20.10.12
 --- !u!4 &1015289708
 Transform:
   m_ObjectHideFlags: 0
