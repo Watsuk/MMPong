@@ -22,13 +22,23 @@ namespace MMPong.Network
         // Le serveur répond toujours à l'endpoint source observé → aucun port fixe n'est requis.
         public int listenPort = 0;
         public string pseudo = "player";
+        public int teamIndex = 0;   // équipe choisie, envoyée au serveur au JOIN
         public int sendRate = 30;
 
         /// <summary>Émis à chaque snapshot reçu du serveur. Point de couture de la couche jeu.</summary>
         public event Action<GameState> OnStateReceived;
 
-        /// <summary>Émis lorsque la liste des joueurs (Lobby) est mise à jour par le serveur.</summary>
+        /// <summary>Émis lorsque la liste des joueurs (Lobby) est mise à jour par le serveur (pseudos seuls).</summary>
         public event Action<string[]> OnLobbyReceived;
+
+        /// <summary>Émis avec l'état lobby détaillé (pseudo + équipe + prêt) pour l'UI de salle d'attente.</summary>
+        public event Action<LobbyPlayerInfo[]> OnLobbyDetailed;
+
+        /// <summary>Émis à la réception de la configuration de match diffusée par le host.</summary>
+        public event Action<MatchSettings> OnConfigReceived;
+
+        /// <summary>Émis quand le serveur attribue l'identifiant local (WELCOME).</summary>
+        public event Action<int> OnWelcome;
 
         /// <summary>Émis à la réception du START : la partie démarre (point de couture UI/jeu).</summary>
         public event Action OnGameStarted;
@@ -51,7 +61,7 @@ namespace MMPong.Network
             transport.OnData += OnData;
             transport.Open(listenPort);
             serverChannel = new ReliableChannel(bytes => transport.Send(bytes, server));
-            serverChannel.SendReliable(Protocol.BuildJoin(pseudo));
+            serverChannel.SendReliable(Protocol.BuildJoin(pseudo, teamIndex));
         }
 
         /// <summary>Envoie l'intention de déplacement courante au serveur (réseau pur).</summary>
@@ -81,9 +91,14 @@ namespace MMPong.Network
                     stateGate.Reset();
                     myId = Protocol.ParseWelcome(m);
                     Debug.Log($"[NetworkClient] WELCOME id={myId}");
+                    OnWelcome?.Invoke(myId);
+                    break;
+                case MessageType.Config:
+                    OnConfigReceived?.Invoke(Protocol.ParseConfig(m));
                     break;
                 case MessageType.Lobby:
                     OnLobbyReceived?.Invoke(Protocol.ParseLobby(m));
+                    OnLobbyDetailed?.Invoke(Protocol.ParseLobbyDetailed(m));
                     break;
                 case MessageType.Start:
                     OnGameStarted?.Invoke();

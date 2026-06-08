@@ -33,5 +33,16 @@ namespace MMPong.Network
             Started = true;
             return true;
         }
+
+        /// <summary>
+        /// Démarrage autoritaire forcé par le host (bouton « Démarrer »), indépendamment du quota.
+        /// Renvoie vrai exactement une fois (latch identique à <see cref="TryStart"/>).
+        /// </summary>
+        public bool ForceStart()
+        {
+            if (Started) return false;
+            Started = true;
+            return true;
+        }
     }
 }

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Text;
@@ -7,7 +8,32 @@ using UnityEngine;
 namespace MMPong.Network
 {
     /// <summary>Types de messages échangés sur le réseau.</summary>
-    public enum MessageType { Input, State, Join, Ready, Welcome, Lobby, Start, End, Ack }
+    public enum MessageType { Input, State, Join, Ready, Welcome, Lobby, Start, End, Ack, Config }
+
+    /// <summary>
+    /// Configuration de match définie par le host, propagée à tous les clients (message CONFIG).
+    /// Champs primitifs pour garder la couche réseau indépendante de la couche UI.
+    /// </summary>
+    public struct MatchSettings
+    {
+        public int maxPlayers;
+        public int winType;       // 0 = Points, 1 = Timer
+        public int targetPoints;
+        public float duration;
+        public string teamAName;
+        public int teamASkin;
+        public string teamBName;
+        public int teamBSkin;
+    }
+
+    /// <summary>État d'un joueur du lobby tel que diffusé par le serveur (message LOBBY enrichi).</summary>
+    public struct LobbyPlayerInfo
+    {
+        public int id;
+        public string pseudo;
+        public int team;
+        public bool ready;
+    }
 
     /// <summary>
     /// Enveloppe d'un message : en-tête (type, seq, reliable) + payload (fields).
@@ -111,15 +137,16 @@ namespace MMPong.Network
             bonusAngle = m.fields.Length > 9 ? PF(m.fields[9]) : 0f
         };
 
-        /// <summary>Demande de connexion (pseudo nettoyé des séparateurs).</summary>
-        public static Message BuildJoin(string pseudo) => new Message
+        /// <summary>Demande de connexion (pseudo nettoyé des séparateurs) + équipe choisie.</summary>
+        public static Message BuildJoin(string pseudo, int teamIndex) => new Message
         {
             type = MessageType.Join,
             reliable = true,
-            fields = new[] { Sanitize(pseudo) }
+            fields = new[] { Sanitize(pseudo), teamIndex.ToString(Inv) }
         };
 
-        public static string ParseJoin(Message m) => m.fields[0];
+        public static (string pseudo, int team) ParseJoin(Message m)
+            => (m.fields[0], m.fields.Length > 1 ? int.Parse(m.fields[1], Inv) : 0);
 
         public static Message BuildReady(int playerId) => new Message
         {
@@ -140,22 +167,82 @@ namespace MMPong.Network
 
         public static int ParseWelcome(Message m) => int.Parse(m.fields[0], Inv);
 
-        /// <summary>Liste des joueurs du lobby (séparée par des virgules).</summary>
-        public static Message BuildLobby(string[] pseudos) => new Message
+        /// <summary>
+        /// État du lobby diffusé par le serveur : pour chaque slot (indexé par id), pseudo + équipe
+        /// + état prêt. Les arrays sont positionnels (longueur = MaxPlayers, "" pour les slots libres).
+        /// </summary>
+        public static Message BuildLobby(string[] pseudos, int[] teams, bool[] ready) => new Message
         {
             type = MessageType.Lobby,
             reliable = true,
             fields = new[]
             {
                 pseudos.Length.ToString(Inv),
-                string.Join(ListSep.ToString(), pseudos.Select(Sanitize))
+                string.Join(ListSep.ToString(), pseudos.Select(Sanitize)),
+                string.Join(ListSep.ToString(), teams.Select(t => t.ToString(Inv))),
+                string.Join(ListSep.ToString(), ready.Select(r => r ? "1" : "0"))
             }
         };
 
+        /// <summary>Pseudos seuls (compat : nommage des paddles). Slots libres inclus comme "".</summary>
         public static string[] ParseLobby(Message m)
             => m.fields.Length > 1 && m.fields[1].Length > 0
                ? m.fields[1].Split(ListSep)
                : Array.Empty<string>();
+
+        /// <summary>Joueurs occupés du lobby (pseudo + équipe + prêt), pour l'UI de salle d'attente.</summary>
+        public static LobbyPlayerInfo[] ParseLobbyDetailed(Message m)
+        {
+            if (m.fields.Length < 2 || m.fields[1].Length == 0)
+                return Array.Empty<LobbyPlayerInfo>();
+
+            string[] pseudos = m.fields[1].Split(ListSep);
+            string[] teams = m.fields.Length > 2 && m.fields[2].Length > 0 ? m.fields[2].Split(ListSep) : Array.Empty<string>();
+            string[] ready = m.fields.Length > 3 && m.fields[3].Length > 0 ? m.fields[3].Split(ListSep) : Array.Empty<string>();
+
+            var list = new List<LobbyPlayerInfo>();
+            for (int i = 0; i < pseudos.Length; i++)
+            {
+                if (string.IsNullOrEmpty(pseudos[i]))
+                    continue;
+                list.Add(new LobbyPlayerInfo
+                {
+                    id = i,
+                    pseudo = pseudos[i],
+                    team = i < teams.Length ? int.Parse(teams[i], Inv) : 0,
+                    ready = i < ready.Length && ready[i] == "1"
+                });
+            }
+            return list.ToArray();
+        }
+
+        /// <summary>Configuration de match (host → clients), diffusée de façon fiable.</summary>
+        public static Message BuildConfig(MatchSettings s) => new Message
+        {
+            type = MessageType.Config,
+            reliable = true,
+            fields = new[]
+            {
+                s.maxPlayers.ToString(Inv),
+                s.winType.ToString(Inv),
+                s.targetPoints.ToString(Inv),
+                F(s.duration),
+                Sanitize(s.teamAName), s.teamASkin.ToString(Inv),
+                Sanitize(s.teamBName), s.teamBSkin.ToString(Inv)
+            }
+        };
+
+        public static MatchSettings ParseConfig(Message m) => new MatchSettings
+        {
+            maxPlayers = int.Parse(m.fields[0], Inv),
+            winType = int.Parse(m.fields[1], Inv),
+            targetPoints = int.Parse(m.fields[2], Inv),
+            duration = PF(m.fields[3]),
+            teamAName = m.fields[4],
+            teamASkin = int.Parse(m.fields[5], Inv),
+            teamBName = m.fields[6],
+            teamBSkin = int.Parse(m.fields[7], Inv)
+        };
 
         /// <summary>Démarrage de la partie (aucun payload).</summary>
         public static Message BuildStart() => new Message

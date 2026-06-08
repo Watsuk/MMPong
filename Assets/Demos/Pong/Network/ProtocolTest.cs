@@ -39,13 +39,30 @@ namespace MMPong.Network
                 && g2.phase == GamePhase.GameOver
                 && g2.winner == 0);
 
-            // Join + nettoyage des séparateurs
-            var join = Protocol.ParseJoin(Roundtrip(Protocol.BuildJoin("ali|ce,bob")));
-            Check("Join (sanitize)", join == "alicebob");
+            // Join + nettoyage des séparateurs + équipe
+            var join = Protocol.ParseJoin(Roundtrip(Protocol.BuildJoin("ali|ce,bob", 1)));
+            Check("Join (sanitize + team)", join.pseudo == "alicebob" && join.team == 1);
 
-            // Lobby
-            var lobby = Protocol.ParseLobby(Roundtrip(Protocol.BuildLobby(new[] { "alice", "bob", "charlie" })));
-            Check("Lobby", lobby.Length == 3 && lobby[2] == "charlie");
+            // Lobby (pseudos + équipes + prêt positionnels)
+            var lobbyMsg = Roundtrip(Protocol.BuildLobby(
+                new[] { "alice", "bob", "charlie", "" },
+                new[] { 0, 1, 0, 0 },
+                new[] { true, false, true, false }));
+            var lobby = Protocol.ParseLobby(lobbyMsg);
+            Check("Lobby (pseudos)", lobby.Length == 4 && lobby[2] == "charlie");
+            var lobbyDetail = Protocol.ParseLobbyDetailed(lobbyMsg);
+            Check("Lobby (détaillé)", lobbyDetail.Length == 3
+                && lobbyDetail[2].pseudo == "charlie" && lobbyDetail[2].team == 0 && lobbyDetail[2].ready
+                && lobbyDetail[1].team == 1 && !lobbyDetail[1].ready);
+
+            // Config (round-trip)
+            var cfg = Protocol.ParseConfig(Roundtrip(Protocol.BuildConfig(new MatchSettings
+            {
+                maxPlayers = 4, winType = 1, targetPoints = 7, duration = 90f,
+                teamAName = "Rouge", teamASkin = 0, teamBName = "Bleu", teamBSkin = 2
+            })));
+            Check("Config", cfg.maxPlayers == 4 && cfg.winType == 1 && cfg.targetPoints == 7
+                && Mathf.Approximately(cfg.duration, 90f) && cfg.teamAName == "Rouge" && cfg.teamBSkin == 2);
 
             // Start (fiable, sans payload)
             var start = Roundtrip(Protocol.BuildStart());
@@ -69,7 +86,7 @@ namespace MMPong.Network
             // ReliableChannel — émission : assigne un seq, ré-émet sans ACK, stoppe sur ACK
             var sent = new System.Collections.Generic.List<byte[]>();
             var chan = new ReliableChannel(b => sent.Add(b));
-            chan.SendReliable(Protocol.BuildJoin("alice"));
+            chan.SendReliable(Protocol.BuildJoin("alice", 0));
             Check("Reliable émet une fois", sent.Count == 1);
             uint sentSeq = Protocol.Decode(sent[0]).seq;
             Check("Reliable assigne un seq", sentSeq >= 1);
