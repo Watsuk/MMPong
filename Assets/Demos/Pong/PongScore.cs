@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using TMPro; // /!\ TRÈS IMPORTANT pour pouvoir utiliser TextMeshPro
 
 public class PongScore : MonoBehaviour
@@ -25,6 +25,14 @@ public class PongScore : MonoBehaviour
     public void MarquerPointDroit()
     {
         rightScore++;
+        ActualiserAffichage();
+    }
+
+    /// <summary>Applique directement les scores reçus du serveur (côté client réseau).</summary>
+    public void SetScores(int left, int right)
+    {
+        leftScore = left;
+        rightScore = right;
         ActualiserAffichage();
     }
 

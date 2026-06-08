@@ -14,6 +14,7 @@ namespace MMPong.Network
         NetworkClient client;
         PongPaddle[] paddles;
         PongBall ball;
+        PongScore scoreDisplay;
 
         void Awake()
         {
@@ -22,6 +23,7 @@ namespace MMPong.Network
                 .OrderBy(p => (int)p.Player)
                 .ToArray();
             ball = FindFirstObjectByType<PongBall>();
+            scoreDisplay = FindFirstObjectByType<PongScore>();
         }
 
         void OnEnable() => client.OnStateReceived += Apply;
@@ -38,6 +40,10 @@ namespace MMPong.Network
                 ball.transform.position = new Vector3(s.ballPos.x, s.ballPos.y, 0f);
                 ball.ApplyVisualState(s.ballOwner);
             }
+
+            // Synchronise les scores affichés depuis l'état serveur
+            if (scoreDisplay != null && s.scores != null && s.scores.Length >= 2)
+                scoreDisplay.SetScores(s.scores[0], s.scores[1]);
 
             if (BonusManager.Instance != null)
                 BonusManager.Instance.SyncNetworkState(s.hasBonus, s.bonusCircleIndex, s.bonusAngle);
