@@ -1,13 +1,14 @@
-using System.Collections.Generic;
 using System.Net;
 using UnityEngine;
 
 namespace MMPong.Network
 {
     /// <summary>
-    /// Serveur autoritatif. Tient le registre des clients, reçoit les INPUT, et à cadence fixe
-    /// délègue à <see cref="ServerGameBridge"/> : applique l'input à la vraie simulation, lit le
-    /// <see cref="GameState"/> résultant et le diffuse à tous.
+    /// Serveur autoritatif (orchestrateur). Compose les collaborateurs réseau — registre des
+    /// clients (<see cref="ClientRegistry"/>), fiabilité multi-pairs (<see cref="ReliableHub"/>),
+    /// coordination du start (<see cref="MatchCoordinator"/>) — et pilote la boucle de simulation
+    /// via <see cref="ServerGameBridge"/>. Chaque responsabilité métier vit dans sa classe dédiée ;
+    /// ce composant ne fait qu'aiguiller et orchestrer le cycle Unity.
     /// </summary>
     [RequireComponent(typeof(UdpTransport))]
     public class NetworkServer : MonoBehaviour
@@ -19,15 +20,11 @@ namespace MMPong.Network
         /// <summary>Colle vers la simulation (posée par GameBootstrap). Sans elle, le serveur ne simule rien.</summary>
         public ServerGameBridge bridge;
 
-        const int MaxPlayers = 4;
-
         UdpTransport transport;
-        readonly Dictionary<int, IPEndPoint> clients = new Dictionary<int, IPEndPoint>();
-        readonly Dictionary<int, string> playerNames = new Dictionary<int, string>();
-        readonly Dictionary<IPEndPoint, ReliableChannel> channels = new Dictionary<IPEndPoint, ReliableChannel>();
-        readonly float[] pendingInput = new float[MaxPlayers];
-        readonly ReadyTracker ready = new ReadyTracker();
-        bool started;
+        ClientRegistry registry;
+        ReliableHub hub;
+        MatchCoordinator match;
+        float[] pendingInput;
         GameState state;
         uint tickSeq;
         float tickTimer;
@@ -35,6 +32,11 @@ namespace MMPong.Network
         void Start()
         {
             transport = GetComponent<UdpTransport>();
+            registry = new ClientRegistry();
+            hub = new ReliableHub((bytes, ep) => transport.Send(bytes, ep));
+            match = new MatchCoordinator(expectedPlayers);
+            pendingInput = new float[ClientRegistry.MaxPlayers];
+
             transport.OnData += OnData;
             transport.Open(listenPort);
         }
@@ -43,8 +45,8 @@ namespace MMPong.Network
         {
             Message m = Protocol.Decode(data);
 
-            if (m.type == MessageType.Ack) { ChannelFor(from).HandleAck(Protocol.ParseAck(m)); return; }
-            if (m.reliable && !ChannelFor(from).ReceiveReliable(m)) return;
+            if (m.type == MessageType.Ack) { hub.HandleAck(from, Protocol.ParseAck(m)); return; }
+            if (m.reliable && !hub.ReceiveReliable(from, m)) return;
 
             switch (m.type)
             {
@@ -54,67 +56,36 @@ namespace MMPong.Network
             }
         }
 
-        void HandleReady(Message m)
-        {
-            ready.MarkReady(Protocol.ParseReady(m));
-            if (!started && ready.AllReady(expectedPlayers)) StartMatch();
-        }
-
-        void StartMatch()
-        {
-            started = true;
-            bridge?.StartMatch();
-            Debug.Log($"[NetworkServer] START ({ready.Count}/{expectedPlayers} prêts).");
-            Message start = Protocol.BuildStart();
-            foreach (var ep in clients.Values)
-                ChannelFor(ep).SendReliable(start);
-        }
-
-        ReliableChannel ChannelFor(IPEndPoint ep)
-        {
-            if (!channels.TryGetValue(ep, out var ch))
-            {
-                ch = new ReliableChannel(bytes => transport.Send(bytes, ep));
-                channels[ep] = ch;
-            }
-            return ch;
-        }
-
         void HandleJoin(Message m, IPEndPoint from)
         {
             string pseudo = Protocol.ParseJoin(m);
-            int id = FindClientId(from);
-            if (id < 0) id = AssignId(from, pseudo);
+            if (!registry.TryFindId(from, out int id)) id = registry.Register(from, pseudo);
             if (id < 0)
             {
                 Debug.LogWarning("[NetworkServer] Partie pleine, JOIN refusé.");
                 return;
             }
 
-            ChannelFor(from).SendReliable(Protocol.BuildWelcome(id));
+            hub.SendReliable(from, Protocol.BuildWelcome(id));
             Debug.Log($"[NetworkServer] client joined id={id} pseudo={pseudo} from {from}");
-            
-            BroadcastLobby();
-        }
 
-        void BroadcastLobby()
-        {
-            string[] pseudos = new string[MaxPlayers];
-            for (int i = 0; i < MaxPlayers; i++)
-            {
-                pseudos[i] = playerNames.ContainsKey(i) ? playerNames[i] : "";
-            }
-
-            Message lobby = Protocol.BuildLobby(pseudos);
-            foreach (var ep in clients.Values)
-                ChannelFor(ep).SendReliable(lobby);
+            hub.BroadcastReliable(registry.Endpoints, Protocol.BuildLobby(registry.Pseudos()));
         }
 
         void HandleInput(Message m)
         {
             var (id, dir) = Protocol.ParseInput(m);
-            if (id >= 0 && id < MaxPlayers)
+            if (id >= 0 && id < ClientRegistry.MaxPlayers)
                 pendingInput[id] = Mathf.Clamp(dir, -1f, 1f);
+        }
+
+        void HandleReady(Message m)
+        {
+            if (!match.TryStart(Protocol.ParseReady(m))) return;
+
+            bridge?.StartMatch();
+            Debug.Log($"[NetworkServer] START ({match.ReadyCount}/{expectedPlayers} prêts).");
+            hub.BroadcastReliable(registry.Endpoints, Protocol.BuildStart());
         }
 
         void Update()
@@ -127,44 +98,18 @@ namespace MMPong.Network
                 Tick();
             }
 
-            foreach (var ch in channels.Values)
-                ch.Tick(Time.deltaTime);
+            hub.TickAll(Time.deltaTime);
         }
 
         void Tick()
         {
-            if (!started || bridge == null) return;
+            if (!match.Started || bridge == null) return;
             bridge.ApplyInput(pendingInput);
             state = bridge.BuildState(++tickSeq);
-            Broadcast(Protocol.BuildState(state));
-        }
 
-        void Broadcast(Message m)
-        {
-            byte[] bytes = Protocol.Encode(m);
-            foreach (var ep in clients.Values)
+            byte[] bytes = Protocol.Encode(Protocol.BuildState(state));
+            foreach (var ep in registry.Endpoints)
                 transport.Send(bytes, ep);
-        }
-
-        int FindClientId(IPEndPoint ep)
-        {
-            foreach (var kv in clients)
-                if (kv.Value.Equals(ep)) return kv.Key;
-            return -1;
-        }
-
-        int AssignId(IPEndPoint ep, string pseudo)
-        {
-            for (int i = 0; i < MaxPlayers; i++)
-            {
-                if (!clients.ContainsKey(i))
-                {
-                    clients[i] = ep;
-                    playerNames[i] = pseudo;
-                    return i;
-                }
-            }
-            return -1;
         }
 
         void OnDisable()
