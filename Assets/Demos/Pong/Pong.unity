@@ -395,7 +395,7 @@ MonoBehaviour:
   - {fileID: 1710658413}
   - {fileID: 1151381957}
   - {fileID: 796883190}
-  totalPlayers: 6
+  totalPlayers: 2
   CircleRadii:
   - 5
   - 7
@@ -11461,6 +11461,8 @@ MonoBehaviour:
   StartPanel: {fileID: 422646143}
   UsernameInput: {fileID: 1636879698}
   StartButton: {fileID: 513830832}
+  HostButton: {fileID: 0}
+  JoinButton: {fileID: 0}
   Bootstrap: {fileID: 1015289707}
 --- !u!1 &1999715756
 GameObject:

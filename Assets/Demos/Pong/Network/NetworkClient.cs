@@ -15,7 +15,11 @@ namespace MMPong.Network
     {
         public string serverIp = "127.0.0.1";
         public int serverPort = 25000;
-        public int listenPort = 26000;
+        // 0 = port local éphémère attribué par l'OS. Indispensable pour que plusieurs clients
+        // cohabitent sur une même machine : un port fixe ferait apparaître tous les clients au
+        // serveur sous le même endpoint (127.0.0.1:port) et les fusionnerait sur un seul joueur.
+        // Le serveur répond toujours à l'endpoint source observé → aucun port fixe n'est requis.
+        public int listenPort = 0;
         public string pseudo = "player";
         public int sendRate = 30;
 
