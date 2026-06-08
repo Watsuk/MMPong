@@ -70,9 +70,18 @@ public class PongWinUI : MonoBehaviour
     void TryBindNetworkClient()
     {
         if (networkClient != null) return;
-        networkClient = FindFirstObjectByType<NetworkClient>();
-        if (networkClient != null)
-            networkClient.OnStateReceived += OnNetworkState;
+        
+        // Recherche tous les NetworkClient et ignore celui qui traîne sur l'objet Bootstrap (mort)
+        var clients = FindObjectsByType<NetworkClient>(FindObjectsSortMode.None);
+        foreach (var client in clients)
+        {
+            if (client.gameObject.name.StartsWith("NetworkClient"))
+            {
+                networkClient = client;
+                networkClient.OnStateReceived += OnNetworkState;
+                break;
+            }
+        }
     }
 
     /// <summary>Construit les éléments UI supplémentaires par code (texte gagnant + score).</summary>
