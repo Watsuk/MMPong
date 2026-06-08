@@ -1,6 +1,7 @@
 using System;
 using System.Net;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace MMPong.Network
 {
@@ -99,7 +100,8 @@ namespace MMPong.Network
         {
             serverChannel?.Tick(Time.deltaTime);
 
-            currentDir = Input.GetAxisRaw("Vertical");
+            // Contrôle réseau unifié : flèches ↑/↓ uniquement, pour TOUS les joueurs (↑ = +1, ↓ = -1).
+            currentDir = ReadArrowDirection();
 
             float step = 1f / sendRate;
             sendTimer += Time.deltaTime;
@@ -108,6 +110,17 @@ namespace MMPong.Network
                 sendTimer -= step;
                 SendInput(currentDir);
             }
+        }
+
+        /// <summary>Direction verticale à partir des seules flèches ↑/↓ (↑ = +1, ↓ = -1, sinon 0).</summary>
+        static float ReadArrowDirection()
+        {
+            var kb = Keyboard.current;
+            if (kb == null) return 0f;
+            float dir = 0f;
+            if (kb.upArrowKey.isPressed) dir += 1f;
+            if (kb.downArrowKey.isPressed) dir -= 1f;
+            return dir;
         }
 
         void OnDisable()
