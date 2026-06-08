@@ -4,16 +4,58 @@ using UnityEngine;
 namespace MMPong.Network
 {
     /// <summary>
-    /// Affiche l'état reçu du serveur côté client : positionne les paddles (depuis leur angle)
-    /// et la balle, <b>sans aucune simulation locale</b>. Branché sur
-    /// <see cref="NetworkClient.OnStateReceived"/>. Suppose les paddles/balle en RemoteDisplay.
+    /// Affiche l'état reçu du serveur côté client avec <b>interpolation linéaire</b>
+    /// (Snapshot Interpolation) et <b>prédiction client</b> (Client-Side Prediction).
+    ///
+    /// <b>Interpolation :</b>
+    /// Stocke les deux derniers snapshots horodatés et interpole dans Update()
+    /// pour un rendu fluide même si le serveur n'envoie que 30 ticks/s.
+    /// Les valeurs discrètes (ballOwner, bonus) sont appliquées immédiatement.
+    ///
+    /// <b>Prédiction client :</b>
+    /// Le paddle du joueur local est exclu de l'interpolation réseau : il se
+    /// déplace immédiatement en réponse aux inputs clavier dans son propre
+    /// <c>PongPaddle.Update()</c>, sans attendre la confirmation du serveur.
+    /// Cela supprime l'input lag (≈ 1 RTT, soit 50-150ms sur Internet).
+    ///
+    /// <b>Réconciliation serveur :</b>
+    /// Le serveur reste autoritatif. Si l'angle prédit localement diverge de
+    /// plus de <see cref="ReconcileThreshold"/> degrés par rapport à l'état
+    /// serveur, le paddle est doucement corrigé via un Lerp à vitesse
+    /// <see cref="ReconcileSpeed"/>, évitant un snap visuel brutal.
     /// </summary>
     [RequireComponent(typeof(NetworkClient))]
     public class ClientStateApplier : MonoBehaviour
     {
+        /// <summary>Snapshot horodaté pour l'interpolation entre deux états.</summary>
+        struct TimestampedState
+        {
+            public GameState state;
+            public float time;
+        }
+
+        /// <summary>
+        /// Seuil de tolérance (degrés) au-delà duquel le serveur corrige la prédiction
+        /// locale. En dessous, la prédiction est considérée suffisamment juste.
+        /// </summary>
+        const float ReconcileThreshold = 5f;
+
+        /// <summary>
+        /// Vitesse de correction douce par frame (0 = pas de correction, 1 = snap immédiat).
+        /// Une valeur basse (0.15) donne une correction progressive et invisible.
+        /// </summary>
+        const float ReconcileSpeed = 0.15f;
+
         NetworkClient client;
         PongPaddle[] paddles;
         PongBall ball;
+
+        /// <summary>Avant-dernier snapshot reçu (point de départ de l'interpolation).</summary>
+        TimestampedState previous;
+        /// <summary>Dernier snapshot reçu (point d'arrivée de l'interpolation).</summary>
+        TimestampedState target;
+        bool hasTarget;
+        bool hasPrevious;
 
         void Awake()
         {
@@ -24,23 +66,130 @@ namespace MMPong.Network
             ball = FindFirstObjectByType<PongBall>();
         }
 
-        void OnEnable() => client.OnStateReceived += Apply;
-        void OnDisable() => client.OnStateReceived -= Apply;
+        void OnEnable() => client.OnStateReceived += OnStateReceived;
+        void OnDisable() => client.OnStateReceived -= OnStateReceived;
 
-        void Apply(GameState s)
+        /// <summary>
+        /// Callback réseau : décale l'état cible vers le précédent et stocke le nouveau
+        /// snapshot avec son horodatage. Les valeurs discrètes (couleur de la balle,
+        /// état du bonus) sont appliquées immédiatement car elles ne se prêtent pas
+        /// à l'interpolation.
+        /// </summary>
+        void OnStateReceived(GameState s)
         {
-            int n = Mathf.Min(paddles.Length, s.paddleAngle.Length);
-            for (int i = 0; i < n; i++)
-                paddles[i].ApplyNetworkAngle(s.paddleAngle[i]);
-
-            if (ball != null)
+            // Décalage : l'ancien cible devient le précédent
+            if (hasTarget)
             {
-                ball.transform.position = new Vector3(s.ballPos.x, s.ballPos.y, 0f);
-                ball.ApplyVisualState(s.ballOwner);
+                previous = target;
+                hasPrevious = true;
             }
+
+            target = new TimestampedState { state = s, time = Time.time };
+            hasTarget = true;
+
+            // Valeurs discrètes : appliquées immédiatement (pas interpolables)
+            if (ball != null)
+                ball.ApplyVisualState(s.ballOwner);
 
             if (BonusManager.Instance != null)
                 BonusManager.Instance.SyncNetworkState(s.hasBonus, s.bonusCircleIndex, s.bonusAngle);
+        }
+
+        /// <summary>
+        /// Chaque frame Unity : interpole les positions continues des entités distantes
+        /// et réconcilie le paddle local si nécessaire.
+        /// </summary>
+        void Update()
+        {
+            if (!hasTarget) return;
+
+            // Premier snapshot : pas encore de paire → on applique directement
+            if (!hasPrevious)
+            {
+                ApplyDirect(target.state);
+                return;
+            }
+
+            // Durée entre les deux derniers snapshots (≈ 1/tickRate du serveur)
+            float duration = target.time - previous.time;
+            if (duration <= 0f)
+            {
+                ApplyDirect(target.state);
+                return;
+            }
+
+            // Facteur d'interpolation : 0 = position précédente, 1 = position cible
+            float elapsed = Time.time - previous.time;
+            float t = Mathf.Clamp01(elapsed / duration);
+
+            int localId = client.PlayerId;
+
+            // Interpolation des angles des paddles (LerpAngle gère le wrap 0↔360)
+            int paddleCountPrev = previous.state.paddleAngle != null ? previous.state.paddleAngle.Length : 0;
+            int paddleCountTarget = target.state.paddleAngle != null ? target.state.paddleAngle.Length : 0;
+            int n = Mathf.Min(paddles.Length, Mathf.Min(paddleCountPrev, paddleCountTarget));
+            for (int i = 0; i < n; i++)
+            {
+                // Prédiction client : le paddle local se déplace seul via PongPaddle.Update(),
+                // on ne l'écrase pas → suppression de l'input lag.
+                if (i == localId)
+                {
+                    Reconcile(i);
+                    continue;
+                }
+
+                float angle = Mathf.LerpAngle(
+                    previous.state.paddleAngle[i],
+                    target.state.paddleAngle[i],
+                    t);
+                paddles[i].ApplyNetworkAngle(angle);
+            }
+
+            // Interpolation de la position de la balle (Lerp linéaire)
+            if (ball != null)
+            {
+                Vector2 pos = Vector2.Lerp(previous.state.ballPos, target.state.ballPos, t);
+                ball.transform.position = new Vector3(pos.x, pos.y, 0f);
+            }
+        }
+
+        /// <summary>
+        /// Réconciliation serveur : si la position prédite du paddle local diverge de
+        /// plus de <see cref="ReconcileThreshold"/> degrés par rapport à l'état autoritatif
+        /// du serveur, on corrige doucement via un LerpAngle. En dessous du seuil, la
+        /// prédiction est considérée juste et le paddle n'est pas touché.
+        /// </summary>
+        void Reconcile(int localIndex)
+        {
+            if (target.state.paddleAngle == null || localIndex >= target.state.paddleAngle.Length) return;
+            if (localIndex >= paddles.Length || paddles[localIndex] == null) return;
+
+            float serverAngle = target.state.paddleAngle[localIndex];
+            float localAngle = paddles[localIndex].CurrentAngle;
+            float diff = Mathf.Abs(Mathf.DeltaAngle(localAngle, serverAngle));
+
+            if (diff > ReconcileThreshold)
+            {
+                // Correction progressive : on ramène doucement le paddle vers le serveur
+                float corrected = Mathf.LerpAngle(localAngle, serverAngle, ReconcileSpeed);
+                paddles[localIndex].ApplyNetworkAngle(corrected);
+            }
+        }
+
+        /// <summary>Applique un état directement sans interpolation (premier snapshot reçu).</summary>
+        void ApplyDirect(GameState s)
+        {
+            int localId = client.PlayerId;
+            int n = Mathf.Min(paddles.Length, s.paddleAngle != null ? s.paddleAngle.Length : 0);
+            for (int i = 0; i < n; i++)
+            {
+                // Même en mode direct, on ne touche pas au paddle local (prédiction)
+                if (i == localId) continue;
+                paddles[i].ApplyNetworkAngle(s.paddleAngle[i]);
+            }
+
+            if (ball != null)
+                ball.transform.position = new Vector3(s.ballPos.x, s.ballPos.y, 0f);
         }
     }
 }
