@@ -49,6 +49,7 @@ namespace MMPong.Network
         NetworkClient client;
         PongPaddle[] paddles;
         PongBall ball;
+        PongScore scoreDisplay;
 
         /// <summary>Avant-dernier snapshot reçu (point de départ de l'interpolation).</summary>
         TimestampedState previous;
@@ -64,6 +65,7 @@ namespace MMPong.Network
                 .OrderBy(p => (int)p.Player)
                 .ToArray();
             ball = FindFirstObjectByType<PongBall>();
+            scoreDisplay = FindFirstObjectByType<PongScore>();
         }
 
         void OnEnable() => client.OnStateReceived += OnStateReceived;
@@ -90,6 +92,10 @@ namespace MMPong.Network
             // Valeurs discrètes : appliquées immédiatement (pas interpolables)
             if (ball != null)
                 ball.ApplyVisualState(s.ballOwner);
+
+            // Synchronise les scores affichés depuis l'état serveur
+            if (scoreDisplay != null && s.scores != null && s.scores.Length >= 2)
+                scoreDisplay.SetScores(s.scores[0], s.scores[1]);
 
             if (BonusManager.Instance != null)
                 BonusManager.Instance.SyncNetworkState(s.hasBonus, s.bonusCircleIndex, s.bonusAngle);

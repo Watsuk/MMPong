@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using UnityEngine;
@@ -6,7 +7,32 @@ using UnityEngine;
 namespace MMPong.Network
 {
     /// <summary>Types de messages échangés sur le réseau.</summary>
-    public enum MessageType : byte { Input, State, Join, Ready, Welcome, Lobby, Start, End, Ack }
+    public enum MessageType : byte { Input, State, Join, Ready, Welcome, Lobby, Start, End, Ack, Config }
+
+    /// <summary>
+    /// Configuration de match définie par le host, propagée à tous les clients (message CONFIG).
+    /// Champs primitifs pour garder la couche réseau indépendante de la couche UI.
+    /// </summary>
+    public struct MatchSettings
+    {
+        public int maxPlayers;
+        public int winType;       // 0 = Points, 1 = Timer
+        public int targetPoints;
+        public float duration;
+        public string teamAName;
+        public int teamASkin;
+        public string teamBName;
+        public int teamBSkin;
+    }
+
+    /// <summary>État d'un joueur du lobby tel que diffusé par le serveur (message LOBBY enrichi).</summary>
+    public struct LobbyPlayerInfo
+    {
+        public int id;
+        public string pseudo;
+        public int team;
+        public bool ready;
+    }
 
     /// <summary>
     /// Enveloppe d'un message : en-tête (type, seq, reliable) + payload binaire.
@@ -253,22 +279,27 @@ namespace MMPong.Network
         }
 
         // ---------- Join ----------
-        // Payload : [pseudoLen:2][pseudo:N]
+        // Payload : [pseudoLen:2][pseudo:N][team:4]
 
-        /// <summary>Demande de connexion (pseudo nettoyé des séparateurs).</summary>
-        public static Message BuildJoin(string pseudo)
+        /// <summary>Demande de connexion (pseudo nettoyé des séparateurs) + équipe choisie.</summary>
+        public static Message BuildJoin(string pseudo, int teamIndex)
         {
             using (var ms = new MemoryStream(32))
             {
                 WriteString(ms, Sanitize(pseudo));
+                WriteInt(ms, teamIndex);
                 return new Message { type = MessageType.Join, reliable = true, payload = ms.ToArray() };
             }
         }
 
-        public static string ParseJoin(Message m)
+        public static (string pseudo, int team) ParseJoin(Message m)
         {
             using (var ms = new MemoryStream(m.payload))
-                return ReadString(ms);
+            {
+                string pseudo = ReadString(ms);
+                int team = ms.Position < ms.Length ? ReadInt(ms) : 0; // tolérant à un ancien JOIN sans équipe
+                return (pseudo, team);
+            }
         }
 
         // ---------- Ready ----------
@@ -309,21 +340,30 @@ namespace MMPong.Network
         }
 
         // ---------- Lobby ----------
-        // Payload : [count:1][str0Len:2][str0:N][str1Len:2][str1:N]...
+        // Payload : [count:1] puis par joueur : [pseudoLen:2][pseudo:N][team:4][ready:1]
+        // Positionnel : index = playerId, slots libres encodés avec un pseudo vide.
 
-        /// <summary>Liste des joueurs du lobby.</summary>
-        public static Message BuildLobby(string[] pseudos)
+        /// <summary>
+        /// État du lobby diffusé par le serveur : pour chaque slot (indexé par id), pseudo + équipe
+        /// + état prêt. Les arrays sont positionnels (longueur = MaxPlayers, "" pour les slots libres).
+        /// </summary>
+        public static Message BuildLobby(string[] pseudos, int[] teams, bool[] ready)
         {
-            using (var ms = new MemoryStream(64))
+            using (var ms = new MemoryStream(96))
             {
                 byte count = (byte)(pseudos != null ? pseudos.Length : 0);
                 ms.WriteByte(count);
                 for (int i = 0; i < count; i++)
+                {
                     WriteString(ms, Sanitize(pseudos[i]));
+                    WriteInt(ms, teams != null && i < teams.Length ? teams[i] : 0);
+                    ms.WriteByte(ready != null && i < ready.Length && ready[i] ? (byte)1 : (byte)0);
+                }
                 return new Message { type = MessageType.Lobby, reliable = true, payload = ms.ToArray() };
             }
         }
 
+        /// <summary>Pseudos seuls (compat : nommage des paddles). Slots libres inclus comme "".</summary>
         public static string[] ParseLobby(Message m)
         {
             using (var ms = new MemoryStream(m.payload))
@@ -331,8 +371,71 @@ namespace MMPong.Network
                 byte count = (byte)ms.ReadByte();
                 string[] pseudos = new string[count];
                 for (int i = 0; i < count; i++)
+                {
                     pseudos[i] = ReadString(ms);
+                    ReadInt(ms);        // team (ignorée ici)
+                    ms.ReadByte();      // ready (ignoré ici)
+                }
                 return pseudos;
+            }
+        }
+
+        /// <summary>Joueurs occupés du lobby (pseudo + équipe + prêt), pour l'UI de salle d'attente.</summary>
+        public static LobbyPlayerInfo[] ParseLobbyDetailed(Message m)
+        {
+            using (var ms = new MemoryStream(m.payload))
+            {
+                byte count = (byte)ms.ReadByte();
+                var list = new List<LobbyPlayerInfo>(count);
+                for (int i = 0; i < count; i++)
+                {
+                    string pseudo = ReadString(ms);
+                    int team = ReadInt(ms);
+                    bool ready = ms.ReadByte() != 0;
+                    if (string.IsNullOrEmpty(pseudo))
+                        continue;
+                    list.Add(new LobbyPlayerInfo { id = i, pseudo = pseudo, team = team, ready = ready });
+                }
+                return list.ToArray();
+            }
+        }
+
+        // ---------- Config ----------
+        // Payload : [maxPlayers:4][winType:4][targetPoints:4][duration:4]
+        //           [teamAName str][teamASkin:4][teamBName str][teamBSkin:4]
+
+        /// <summary>Configuration de match (host → clients), diffusée de façon fiable.</summary>
+        public static Message BuildConfig(MatchSettings s)
+        {
+            using (var ms = new MemoryStream(48))
+            {
+                WriteInt(ms, s.maxPlayers);
+                WriteInt(ms, s.winType);
+                WriteInt(ms, s.targetPoints);
+                WriteFloat(ms, s.duration);
+                WriteString(ms, Sanitize(s.teamAName));
+                WriteInt(ms, s.teamASkin);
+                WriteString(ms, Sanitize(s.teamBName));
+                WriteInt(ms, s.teamBSkin);
+                return new Message { type = MessageType.Config, reliable = true, payload = ms.ToArray() };
+            }
+        }
+
+        public static MatchSettings ParseConfig(Message m)
+        {
+            using (var ms = new MemoryStream(m.payload))
+            {
+                return new MatchSettings
+                {
+                    maxPlayers = ReadInt(ms),
+                    winType = ReadInt(ms),
+                    targetPoints = ReadInt(ms),
+                    duration = ReadFloat(ms),
+                    teamAName = ReadString(ms),
+                    teamASkin = ReadInt(ms),
+                    teamBName = ReadString(ms),
+                    teamBSkin = ReadInt(ms)
+                };
             }
         }
 

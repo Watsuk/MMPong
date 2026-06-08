@@ -70,9 +70,18 @@ public class PongWinUI : MonoBehaviour
     void TryBindNetworkClient()
     {
         if (networkClient != null) return;
-        networkClient = FindFirstObjectByType<NetworkClient>();
-        if (networkClient != null)
-            networkClient.OnStateReceived += OnNetworkState;
+        
+        // Recherche tous les NetworkClient et ignore celui qui traîne sur l'objet Bootstrap (mort)
+        var clients = FindObjectsByType<NetworkClient>(FindObjectsSortMode.None);
+        foreach (var client in clients)
+        {
+            if (client.gameObject.name.StartsWith("NetworkClient"))
+            {
+                networkClient = client;
+                networkClient.OnStateReceived += OnNetworkState;
+                break;
+            }
+        }
     }
 
     /// <summary>Construit les éléments UI supplémentaires par code (texte gagnant + score).</summary>
@@ -201,30 +210,38 @@ public class PongWinUI : MonoBehaviour
         // ── Détection de la fin de partie ──
         if (!isShowing)
         {
-            // Mode réseau : priorité au GameState
-            if (receivedNetworkState)
+            bool triggerWin = false;
+            int winner = -1;
+            int[] scores = null;
+
+            // Priorité au réseau s'il a reçu le GameOver
+            if (receivedNetworkState && lastNetworkPhase == GamePhase.GameOver)
             {
-                if (lastNetworkPhase == GamePhase.GameOver)
-                    ShowWinScreen(lastNetworkWinner, lastNetworkScores);
+                triggerWin = true;
+                winner = lastNetworkWinner;
+                scores = lastNetworkScores;
             }
-            // Mode local : poll le PongBall
-            else if (ball != null)
+            // Fallback sur l'état local du PongBall (pour l'hôte ou le jeu local pur)
+            else if (ball != null && (ball.State == PongBallState.PlayerLeftWin || ball.State == PongBallState.PlayerRightWin))
             {
-                if (ball.State == PongBallState.PlayerLeftWin)
-                    ShowWinScreen(0, new[] { ball.scoreLeft, ball.scoreRight });
-                else if (ball.State == PongBallState.PlayerRightWin)
-                    ShowWinScreen(1, new[] { ball.scoreLeft, ball.scoreRight });
+                triggerWin = true;
+                winner = ball.State == PongBallState.PlayerLeftWin ? 0 : 1;
+                scores = new[] { ball.scoreLeft, ball.scoreRight };
+            }
+
+            if (triggerWin)
+            {
+                ShowWinScreen(winner, scores);
             }
         }
 
         // ── Animation de fondu ──
-        if (isShowing && fadeTimer < fadeDuration)
+        if (isShowing && canvasGroup.alpha < 1f)
         {
             fadeTimer += Time.deltaTime;
-            float t = Mathf.Clamp01(fadeTimer / fadeDuration);
+            float t = fadeDuration > 0f ? Mathf.Clamp01(fadeTimer / fadeDuration) : 1f;
             // Ease-out quad
-            float alpha = 1f - (1f - t) * (1f - t);
-            canvasGroup.alpha = alpha;
+            canvasGroup.alpha = 1f - (1f - t) * (1f - t);
 
             // Scale bounce léger sur le texte
             float scale = 1f + 0.1f * (1f - t);

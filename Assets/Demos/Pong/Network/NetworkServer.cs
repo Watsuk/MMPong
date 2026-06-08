@@ -29,6 +29,20 @@ namespace MMPong.Network
         uint tickSeq;
         float tickTimer;
 
+        MatchSettings settings;
+        readonly int[] teamById = new int[ClientRegistry.MaxPlayers];
+        readonly bool[] readyById = new bool[ClientRegistry.MaxPlayers];
+
+        /// <summary>
+        /// Définit la configuration du match (appelée par le lobby host avant <see cref="Start"/>).
+        /// Borne <see cref="expectedPlayers"/> à la capacité réseau réelle.
+        /// </summary>
+        public void Configure(MatchSettings s)
+        {
+            settings = s;
+            expectedPlayers = Mathf.Clamp(s.maxPlayers, 1, ClientRegistry.MaxPlayers);
+        }
+
         void Start()
         {
             transport = GetComponent<UdpTransport>();
@@ -36,6 +50,14 @@ namespace MMPong.Network
             hub = new ReliableHub((bytes, ep) => transport.Send(bytes, ep));
             match = new MatchCoordinator(expectedPlayers);
             pendingInput = new float[ClientRegistry.MaxPlayers];
+
+            // Valeurs par défaut si aucun Configure() (compat : démarrage hors hub).
+            if (settings.maxPlayers == 0)
+                settings = new MatchSettings
+                {
+                    maxPlayers = expectedPlayers, winType = 0, targetPoints = 5, duration = 120f,
+                    teamAName = "Rouge", teamASkin = 0, teamBName = "Bleu", teamBSkin = 1
+                };
 
             transport.OnData += OnData;
             transport.Open(listenPort);
@@ -58,7 +80,7 @@ namespace MMPong.Network
 
         void HandleJoin(Message m, IPEndPoint from)
         {
-            string pseudo = Protocol.ParseJoin(m);
+            var (pseudo, team) = Protocol.ParseJoin(m);
             if (!registry.TryFindId(from, out int id)) id = registry.Register(from, pseudo);
             if (id < 0)
             {
@@ -66,10 +88,26 @@ namespace MMPong.Network
                 return;
             }
 
-            hub.SendReliable(from, Protocol.BuildWelcome(id));
-            Debug.Log($"[NetworkServer] client joined id={id} pseudo={pseudo} from {from}");
+            if (id >= 0 && id < teamById.Length) teamById[id] = team;
 
-            hub.BroadcastReliable(registry.Endpoints, Protocol.BuildLobby(registry.Pseudos()));
+            hub.SendReliable(from, Protocol.BuildWelcome(id));
+            hub.SendReliable(from, Protocol.BuildConfig(settings)); // le client reçoit la config du salon
+            Debug.Log($"[NetworkServer] client joined id={id} pseudo={pseudo} team={team} from {from}");
+
+            BroadcastLobby();
+        }
+
+        void BroadcastLobby()
+            => hub.BroadcastReliable(registry.Endpoints,
+                Protocol.BuildLobby(registry.Pseudos(), teamById, readyById));
+
+        /// <summary>Démarrage autoritaire forcé par le host (bouton « Démarrer »).</summary>
+        public void ForceStart()
+        {
+            if (!match.ForceStart()) return;
+            bridge?.StartMatch();
+            Debug.Log("[NetworkServer] START forcé par le host.");
+            hub.BroadcastReliable(registry.Endpoints, Protocol.BuildStart());
         }
 
         void HandleInput(Message m)
@@ -81,7 +119,12 @@ namespace MMPong.Network
 
         void HandleReady(Message m)
         {
-            if (!match.TryStart(Protocol.ParseReady(m))) return;
+            int id = Protocol.ParseReady(m);
+            if (id >= 0 && id < readyById.Length) readyById[id] = true;
+
+            BroadcastLobby(); // tout le monde voit l'état « prêt » mis à jour
+
+            if (!match.TryStart(id)) return;
 
             bridge?.StartMatch();
             Debug.Log($"[NetworkServer] START ({match.ReadyCount}/{expectedPlayers} prêts).");

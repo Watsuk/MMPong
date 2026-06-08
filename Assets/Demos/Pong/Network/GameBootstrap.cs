@@ -76,7 +76,7 @@ namespace MMPong.Network
                     if (ball != null) ball.StartGameFromMenu();
                     break;
                 case GameMode.Host:
-                    SetupHost(pseudo);
+                    SetupHost(pseudo, out _);
                     break;
                 case GameMode.Client:
                     SetupClient(pseudo);
@@ -84,7 +84,12 @@ namespace MMPong.Network
             }
         }
 
-        void SetupHost(string pseudo)
+        /// <summary>
+        /// Crée la couche réseau host (serveur autoritatif + client local) <b>sans démarrer le match</b>
+        /// (le match démarre au START : quota de prêts ou <see cref="NetworkServer.ForceStart"/>).
+        /// Retourne le client (pour s'abonner aux events lobby) et expose le serveur via <paramref name="server"/>.
+        /// </summary>
+        public NetworkClient SetupHost(string pseudo, out NetworkServer server)
         {
             PongPaddle[] paddles = FindObjectsByType<PongPaddle>(FindObjectsSortMode.None)
                 .OrderBy(p => (int)p.Player)
@@ -96,7 +101,7 @@ namespace MMPong.Network
             var bridge = serverGo.AddComponent<ServerGameBridge>();
             bridge.paddles = paddles;
             bridge.ball = ball;
-            var server = serverGo.AddComponent<NetworkServer>();
+            server = serverGo.AddComponent<NetworkServer>();
             server.bridge = bridge;
             server.listenPort = listenPort;
             server.expectedPlayers = PongGameManager.Instance != null ? PongGameManager.Instance.totalPlayers : 2;
@@ -115,9 +120,14 @@ namespace MMPong.Network
             clientGo.AddComponent<DevReadyTrigger>().client = client;
 
             Debug.Log($"[GameBootstrap] Host démarré : {paddles.Length} paddle(s), serveur:{listenPort}, client:{clientPort}. Pseudo: {client.pseudo}");
+            return client;
         }
 
-        void SetupClient(string pseudo)
+        /// <summary>
+        /// Crée le client réseau (afficheur pur) connecté à <see cref="serverIp"/>, avec l'équipe choisie.
+        /// Retourne le client pour s'abonner aux events lobby.
+        /// </summary>
+        public NetworkClient SetupClient(string pseudo, int teamIndex = 0)
         {
             // Le client n'est qu'un afficheur : balle et paddles sont pilotés par l'état serveur,
             // jamais simulés localement. On bascule la scène en RemoteDisplay (miroir du host qui,
@@ -135,6 +145,7 @@ namespace MMPong.Network
             client.serverPort = listenPort;
             // port client laissé éphémère (listenPort = 0) pour cohabiter sur la même machine.
             client.pseudo = string.IsNullOrEmpty(pseudo) ? "player" : pseudo;
+            client.teamIndex = teamIndex;
             client.OnLobbyReceived += OnLobbyReceived;
             client.OnGameStarted += OnGameStarted;
             clientGo.AddComponent<ClientStateApplier>();   // applique les STATE reçus à la scène
@@ -142,6 +153,7 @@ namespace MMPong.Network
             clientGo.AddComponent<DevReadyTrigger>().client = client;
 
             Debug.Log($"[GameBootstrap] Client démarré, connexion à {serverIp}:{listenPort}. Pseudo: {client.pseudo}");
+            return client;
         }
 
         void OnGameStarted()
