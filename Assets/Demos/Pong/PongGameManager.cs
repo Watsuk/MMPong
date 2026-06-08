@@ -116,18 +116,42 @@ public class PongGameManager : MonoBehaviour
 
     void AssignPaddlesToCircles()
     {
-        for (int i = 0; i < allPaddles.Count; i++)
-        {
-            // Assignation DÉTERMINISTE basée sur l'id du joueur (et non Random) : host et clients
-            // calculent ainsi le MÊME cercle pour chaque paddle → placement identique sur toutes
-            // les machines. Un Random ici divergerait d'un PC à l'autre (l'angle est synchronisé
-            // par le serveur, mais le rayon est local → positions différentes).
-            int circle = ((int)allPaddles[i].Player - 1) % CircleRadii.Length;
-            if (circle < 0) circle = 0;
-            float radius = CircleRadii[circle];
+        // Séparer les paddles par couleur (impair = bleu/gauche, pair = rouge/droit)
+        List<PongPaddle> bluePaddles = new List<PongPaddle>();
+        List<PongPaddle> redPaddles = new List<PongPaddle>();
 
-            paddleToCircleIndex[allPaddles[i]] = circle;
-            allPaddles[i].SetCircle(circle, radius, CenterPoint);
+        foreach (PongPaddle p in allPaddles)
+        {
+            if ((int)p.Player % 2 == 1)
+                bluePaddles.Add(p);
+            else
+                redPaddles.Add(p);
+        }
+
+        // Distribuer les paddles bleus sur des cercles différents
+        AssignGroupToCircles(bluePaddles);
+
+        // Distribuer les paddles rouges sur des cercles différents
+        AssignGroupToCircles(redPaddles);
+    }
+
+    void AssignGroupToCircles(List<PongPaddle> group)
+    {
+        // Attribution DÉTERMINISTE : on trie le groupe par id de joueur puis on répartit sur les
+        // cercles par index. L'ordre — donc le cercle de chaque paddle — est ainsi identique sur
+        // le host et les clients → placement réseau cohérent. On n'utilise PAS de Random ici : le
+        // serveur synchronise l'angle des paddles, mais le rayon (cercle) est calculé localement,
+        // donc un tirage aléatoire divergerait d'une machine à l'autre (paddles décalées entre PC).
+        group.Sort((a, b) => ((int)a.Player).CompareTo((int)b.Player));
+
+        for (int i = 0; i < group.Count; i++)
+        {
+            // Si on a plus de paddles que de cercles, on boucle sur les cercles disponibles
+            int circleIndex = i % CircleRadii.Length;
+            float radius = CircleRadii[circleIndex];
+
+            paddleToCircleIndex[group[i]] = circleIndex;
+            group[i].SetCircle(circleIndex, radius, CenterPoint);
         }
     }
 
