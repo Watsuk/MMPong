@@ -206,75 +206,67 @@ public class PongBall : MonoBehaviour
     }
 
     void OnCollisionEnter(Collision c) {
-        switch (c.collider.name)
+        PongPaddle paddle = c.collider.GetComponent<PongPaddle>();
+        if (paddle != null)
         {
-            case "PaddleLeft":
-                hasTouched = true;
-                lastTouchedPlayer = PongPlayer.PlayerLeft;
-                ApplyVisualState(0);
-                Direction = Vector3.Reflect(Direction, c.contacts[0].normal).normalized;
-                Speed += 0.5f;
-                // Secousse proportionnelle à la vitesse (plus la balle va vite, plus ça tremble)
-                if (CameraShaker.Instance != null)
-                    CameraShaker.Instance.Shake(Mathf.Clamp(Speed * 0.02f, 0.05f, 0.3f), 0.1f);
-                break;
-            case "PaddleRight":
-                hasTouched = true;
-                lastTouchedPlayer = PongPlayer.PlayerRight;
-                ApplyVisualState(1);
-                Direction = Vector3.Reflect(Direction, c.contacts[0].normal).normalized;
-                Speed += 0.5f;
-                // Secousse proportionnelle à la vitesse
-                if (CameraShaker.Instance != null)
-                    CameraShaker.Instance.Shake(Mathf.Clamp(Speed * 0.02f, 0.05f, 0.3f), 0.1f);
-                break;
+            hasTouched = true;
+            lastTouchedPlayer = paddle.Player;
+            int ownerId = ((int)paddle.Player % 2 == 1) ? 0 : 1;
+            ApplyVisualState(ownerId);
+            Direction = Vector3.Reflect(Direction, c.contacts[0].normal).normalized;
+            Speed += 0.5f;
+            // Secousse proportionnelle à la vitesse (plus la balle va vite, plus ça tremble)
+            if (CameraShaker.Instance != null)
+                CameraShaker.Instance.Shake(Mathf.Clamp(Speed * 0.02f, 0.05f, 0.3f), 0.1f);
+            return;
+        }
 
-            case "circle":
-                // Son de rebond sur le mur extérieur (joué systématiquement, avant la logique de score)
-                if (wallBounceClip != null && audioSource != null)
-                    audioSource.PlayOneShot(wallBounceClip, 0.5f);
+        if (c.collider.name == "circle")
+        {
+            // Son de rebond sur le mur extérieur (joué systématiquement, avant la logique de score)
+            if (wallBounceClip != null && audioSource != null)
+                audioSource.PlayOneShot(wallBounceClip, 0.5f);
 
-                if (hasTouched)
-                {
-                    if ((int)lastTouchedPlayer % 2 == 1)
-                    {                // Right
-                        scoreRight++;
-                        if (scoreDisplay != null) scoreDisplay.MarquerPointDroit();
-                        // Secousse forte quand un point est marqué
-                        if (CameraShaker.Instance != null)
-                            CameraShaker.Instance.Shake(0.25f, 0.2f);
-                        if (scoreRight >= winScore)
-                        {
-                            _State = PongBallState.PlayerRightWin;
-                        }
-                        else
-                        {
-                            ResetBall();
-                        }
+            if (hasTouched)
+            {
+                if ((int)lastTouchedPlayer % 2 == 1)
+                {                // Left (Blue / Water)
+                    scoreLeft++;
+                    if (scoreDisplay != null) scoreDisplay.MarquerPointGauche();
+                    // Secousse forte quand un point est marqué
+                    if (CameraShaker.Instance != null)
+                        CameraShaker.Instance.Shake(0.25f, 0.2f);
+                    if (scoreLeft >= winScore)
+                    {
+                        _State = PongBallState.PlayerLeftWin;
                     }
                     else
                     {
-                        // Left
-                        scoreLeft++;
-                        if (scoreDisplay != null) scoreDisplay.MarquerPointGauche();
-                        // Secousse forte quand un point est marqué
-                        if (CameraShaker.Instance != null)
-                            CameraShaker.Instance.Shake(0.25f, 0.2f);
-                        if (scoreLeft >= winScore)
-                        {
-                            _State = PongBallState.PlayerLeftWin;
-                        }
-                        else
-                        {
-                            ResetBall();
-                        }
+                        ResetBall();
                     }
                 }
                 else
                 {
-                    ResetBall();
+                    // Right (Red / Fire)
+                    scoreRight++;
+                    if (scoreDisplay != null) scoreDisplay.MarquerPointDroit();
+                    // Secousse forte quand un point est marqué
+                    if (CameraShaker.Instance != null)
+                        CameraShaker.Instance.Shake(0.25f, 0.2f);
+                    if (scoreRight >= winScore)
+                    {
+                        _State = PongBallState.PlayerRightWin;
+                    }
+                    else
+                    {
+                        ResetBall();
+                    }
                 }
-                break;
+            }
+            else
+            {
+                ResetBall();
+            }
         }
     }
 }
