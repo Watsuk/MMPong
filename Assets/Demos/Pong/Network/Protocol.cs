@@ -1,14 +1,13 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
-using System.Linq;
+using System.IO;
 using System.Text;
 using UnityEngine;
 
 namespace MMPong.Network
 {
     /// <summary>Types de messages échangés sur le réseau.</summary>
-    public enum MessageType { Input, State, Join, Ready, Welcome, Lobby, Start, End, Ack, Config }
+    public enum MessageType : byte { Input, State, Join, Ready, Welcome, Lobby, Start, End, Ack, Config }
 
     /// <summary>
     /// Configuration de match définie par le host, propagée à tous les clients (message CONFIG).
@@ -36,246 +35,457 @@ namespace MMPong.Network
     }
 
     /// <summary>
-    /// Enveloppe d'un message : en-tête (type, seq, reliable) + payload (fields).
+    /// Enveloppe d'un message : en-tête (type, seq, reliable) + payload binaire.
+    /// Le payload est opaque : seul Protocol sait lire/écrire chaque type.
     /// </summary>
     public struct Message
     {
         public MessageType type;
         public uint seq;
         public bool reliable;
-        public string[] fields;
+        /// <summary>Payload binaire spécifique au type de message.</summary>
+        public byte[] payload;
     }
 
     /// <summary>
-    /// (Dé)sérialisation texte des messages réseau.
-    /// Format du fil : <c>type|seq|reliable|champ0|champ1|...</c> (UTF-8).
+    /// (Dé)sérialisation <b>binaire</b> des messages réseau.
+    /// Format du fil (little-endian) :
+    /// <c>[type:1][seq:4][reliable:1][payload:N]</c>
     /// Le code de jeu passe par les helpers <c>Build*</c>/<c>Parse*</c> ;
     /// la couche réseau par <see cref="Encode"/>/<see cref="Decode"/>.
+    ///
+    /// <b>Algorithme de sérialisation</b> :
+    /// Chaque champ est écrit dans le flux binaire à une taille fixe (byte, int, float)
+    /// via BinaryWriter (little-endian). Les tableaux de taille variable sont précédés
+    /// d'un compteur (byte) puis de leurs éléments. Les chaînes sont préfixées par leur
+    /// longueur en octets (ushort) suivie du contenu UTF-8 brut.
+    /// Avantage : zéro parsing de texte, taille réduite (un float = 4 octets fixes au
+    /// lieu de ~8-12 caractères ASCII), pas d'allocation de string[] intermédiaire.
     /// </summary>
     public static class Protocol
     {
         const char FieldSep = '|';
         const char ListSep = ',';
-        static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
+
+        // ========== En-tête fixe : 6 octets ==========
+        // [0]     MessageType (1 octet)
+        // [1..4]  seq         (4 octets, uint LE)
+        // [5]     reliable    (1 octet, 0 ou 1)
+
+        const int HeaderSize = 6;
 
         // ---------- Enveloppe ----------
 
-        /// <summary>Sérialise un message en octets UTF-8.</summary>
+        /// <summary>Sérialise un message en octets binaires (en-tête + payload).</summary>
         public static byte[] Encode(Message m)
         {
-            var sb = new StringBuilder();
-            sb.Append(m.type.ToString());
-            sb.Append(FieldSep).Append(m.seq.ToString(Inv));
-            sb.Append(FieldSep).Append(m.reliable ? '1' : '0');
-            if (m.fields != null)
-                foreach (var f in m.fields)
-                    sb.Append(FieldSep).Append(f);
-            return Encoding.UTF8.GetBytes(sb.ToString());
+            int payloadLen = m.payload != null ? m.payload.Length : 0;
+            byte[] buf = new byte[HeaderSize + payloadLen];
+
+            // En-tête
+            buf[0] = (byte)m.type;
+            buf[1] = (byte)(m.seq);
+            buf[2] = (byte)(m.seq >> 8);
+            buf[3] = (byte)(m.seq >> 16);
+            buf[4] = (byte)(m.seq >> 24);
+            buf[5] = m.reliable ? (byte)1 : (byte)0;
+
+            // Payload
+            if (payloadLen > 0)
+                Buffer.BlockCopy(m.payload, 0, buf, HeaderSize, payloadLen);
+
+            return buf;
         }
 
-        /// <summary>Désérialise des octets UTF-8 en message.</summary>
+        /// <summary>Désérialise des octets binaires en message.</summary>
         public static Message Decode(byte[] data)
         {
-            string[] parts = Encoding.UTF8.GetString(data).Split(FieldSep);
-            return new Message
+            if (data.Length < HeaderSize)
+                throw new ArgumentException($"Paquet trop court ({data.Length} < {HeaderSize})");
+
+            var m = new Message
             {
-                type = (MessageType)Enum.Parse(typeof(MessageType), parts[0]),
-                seq = uint.Parse(parts[1], Inv),
-                reliable = parts[2] == "1",
-                fields = parts.Skip(3).ToArray()
+                type = (MessageType)data[0],
+                seq = (uint)(data[1] | (data[2] << 8) | (data[3] << 16) | (data[4] << 24)),
+                reliable = data[5] != 0
             };
+
+            int payloadLen = data.Length - HeaderSize;
+            if (payloadLen > 0)
+            {
+                m.payload = new byte[payloadLen];
+                Buffer.BlockCopy(data, HeaderSize, m.payload, 0, payloadLen);
+            }
+            else
+            {
+                m.payload = Array.Empty<byte>();
+            }
+
+            return m;
         }
 
-        // ---------- Helpers par message ----------
+        // ========== Helpers d'écriture/lecture binaire ==========
+
+        static void WriteFloat(MemoryStream ms, float v)
+        {
+            byte[] b = BitConverter.GetBytes(v);
+            ms.Write(b, 0, 4);
+        }
+
+        static void WriteInt(MemoryStream ms, int v)
+        {
+            byte[] b = BitConverter.GetBytes(v);
+            ms.Write(b, 0, 4);
+        }
+
+        static void WriteUShort(MemoryStream ms, ushort v)
+        {
+            ms.WriteByte((byte)v);
+            ms.WriteByte((byte)(v >> 8));
+        }
+
+        static void WriteString(MemoryStream ms, string s)
+        {
+            byte[] utf8 = Encoding.UTF8.GetBytes(s ?? "");
+            WriteUShort(ms, (ushort)utf8.Length);
+            if (utf8.Length > 0)
+                ms.Write(utf8, 0, utf8.Length);
+        }
+
+        static float ReadFloat(MemoryStream ms)
+        {
+            byte[] b = new byte[4];
+            ms.Read(b, 0, 4);
+            return BitConverter.ToSingle(b, 0);
+        }
+
+        static int ReadInt(MemoryStream ms)
+        {
+            byte[] b = new byte[4];
+            ms.Read(b, 0, 4);
+            return BitConverter.ToInt32(b, 0);
+        }
+
+        static ushort ReadUShort(MemoryStream ms)
+        {
+            int lo = ms.ReadByte();
+            int hi = ms.ReadByte();
+            return (ushort)(lo | (hi << 8));
+        }
+
+        static string ReadString(MemoryStream ms)
+        {
+            ushort len = ReadUShort(ms);
+            if (len == 0) return "";
+            byte[] buf = new byte[len];
+            ms.Read(buf, 0, len);
+            return Encoding.UTF8.GetString(buf);
+        }
+
+        // ========== Helpers par message ==========
+
+        // ---------- Input ----------
+        // Payload : [playerId:4][dir:4] = 8 octets
 
         /// <summary>Input d'un joueur : direction verticale (-1, 0, 1).</summary>
-        public static Message BuildInput(int playerId, float dir) => new Message
+        public static Message BuildInput(int playerId, float dir)
         {
-            type = MessageType.Input,
-            reliable = false,
-            fields = new[] { playerId.ToString(Inv), F(dir) }
-        };
+            using (var ms = new MemoryStream(8))
+            {
+                WriteInt(ms, playerId);
+                WriteFloat(ms, dir);
+                return new Message { type = MessageType.Input, reliable = false, payload = ms.ToArray() };
+            }
+        }
 
         public static (int playerId, float dir) ParseInput(Message m)
-            => (int.Parse(m.fields[0], Inv), PF(m.fields[1]));
+        {
+            using (var ms = new MemoryStream(m.payload))
+            {
+                int id = ReadInt(ms);
+                float dir = ReadFloat(ms);
+                return (id, dir);
+            }
+        }
+
+        // ---------- State ----------
+        // Payload : [ballPos.x:4][ballPos.y:4][ballOwner:4][phase:1][winner:4]
+        //           [paddleCount:1][paddleAngle0:4]...[scoreCount:1][score0:4]...
+        //           [hasBonus:1][bonusCircleIndex:4][bonusAngle:4]
 
         /// <summary>Snapshot d'état (le <c>seq</c> du message reprend celui du GameState).</summary>
-        public static Message BuildState(GameState s) => new Message
+        public static Message BuildState(GameState s)
         {
-            type = MessageType.State,
-            seq = s.seq,
-            reliable = false,
-            fields = new[]
+            using (var ms = new MemoryStream(64))
             {
-                F(s.ballPos.x), F(s.ballPos.y),
-                s.ballOwner.ToString(Inv),
-                ((byte)s.phase).ToString(Inv),
-                s.winner.ToString(Inv),
-                string.Join(ListSep.ToString(), s.paddleAngle.Select(F)),
-                string.Join(ListSep.ToString(), s.scores.Select(v => v.ToString(Inv))),
-                s.hasBonus ? "1" : "0",
-                s.bonusCircleIndex.ToString(Inv),
-                F(s.bonusAngle)
-            }
-        };
+                // Balle
+                WriteFloat(ms, s.ballPos.x);
+                WriteFloat(ms, s.ballPos.y);
+                WriteInt(ms, s.ballOwner);
 
-        public static GameState ParseState(Message m) => new GameState
+                // Phase & winner
+                ms.WriteByte((byte)s.phase);
+                WriteInt(ms, s.winner);
+
+                // Paddles (tableau variable précédé de son compteur)
+                byte paddleCount = (byte)(s.paddleAngle != null ? s.paddleAngle.Length : 0);
+                ms.WriteByte(paddleCount);
+                for (int i = 0; i < paddleCount; i++)
+                    WriteFloat(ms, s.paddleAngle[i]);
+
+                // Scores (tableau variable précédé de son compteur)
+                byte scoreCount = (byte)(s.scores != null ? s.scores.Length : 0);
+                ms.WriteByte(scoreCount);
+                for (int i = 0; i < scoreCount; i++)
+                    WriteInt(ms, s.scores[i]);
+
+                // Bonus
+                ms.WriteByte(s.hasBonus ? (byte)1 : (byte)0);
+                WriteInt(ms, s.bonusCircleIndex);
+                WriteFloat(ms, s.bonusAngle);
+
+                return new Message { type = MessageType.State, seq = s.seq, reliable = false, payload = ms.ToArray() };
+            }
+        }
+
+        public static GameState ParseState(Message m)
         {
-            seq = m.seq,
-            ballPos = new Vector2(PF(m.fields[0]), PF(m.fields[1])),
-            ballOwner = int.Parse(m.fields[2], Inv),
-            phase = (GamePhase)byte.Parse(m.fields[3], Inv),
-            winner = int.Parse(m.fields[4], Inv),
-            paddleAngle = m.fields[5].Length > 0
-                ? m.fields[5].Split(ListSep).Select(PF).ToArray()
-                : Array.Empty<float>(),
-            scores = m.fields[6].Length > 0
-                ? m.fields[6].Split(ListSep).Select(v => int.Parse(v, Inv)).ToArray()
-                : Array.Empty<int>(),
-            hasBonus = m.fields.Length > 7 && m.fields[7] == "1",
-            bonusCircleIndex = m.fields.Length > 8 ? int.Parse(m.fields[8], Inv) : 0,
-            bonusAngle = m.fields.Length > 9 ? PF(m.fields[9]) : 0f
-        };
+            using (var ms = new MemoryStream(m.payload))
+            {
+                var s = new GameState { seq = m.seq };
+
+                s.ballPos = new Vector2(ReadFloat(ms), ReadFloat(ms));
+                s.ballOwner = ReadInt(ms);
+
+                s.phase = (GamePhase)ms.ReadByte();
+                s.winner = ReadInt(ms);
+
+                byte paddleCount = (byte)ms.ReadByte();
+                s.paddleAngle = new float[paddleCount];
+                for (int i = 0; i < paddleCount; i++)
+                    s.paddleAngle[i] = ReadFloat(ms);
+
+                byte scoreCount = (byte)ms.ReadByte();
+                s.scores = new int[scoreCount];
+                for (int i = 0; i < scoreCount; i++)
+                    s.scores[i] = ReadInt(ms);
+
+                s.hasBonus = ms.ReadByte() != 0;
+                s.bonusCircleIndex = ReadInt(ms);
+                s.bonusAngle = ReadFloat(ms);
+
+                return s;
+            }
+        }
+
+        // ---------- Join ----------
+        // Payload : [pseudoLen:2][pseudo:N][team:4]
 
         /// <summary>Demande de connexion (pseudo nettoyé des séparateurs) + équipe choisie.</summary>
-        public static Message BuildJoin(string pseudo, int teamIndex) => new Message
+        public static Message BuildJoin(string pseudo, int teamIndex)
         {
-            type = MessageType.Join,
-            reliable = true,
-            fields = new[] { Sanitize(pseudo), teamIndex.ToString(Inv) }
-        };
+            using (var ms = new MemoryStream(32))
+            {
+                WriteString(ms, Sanitize(pseudo));
+                WriteInt(ms, teamIndex);
+                return new Message { type = MessageType.Join, reliable = true, payload = ms.ToArray() };
+            }
+        }
 
         public static (string pseudo, int team) ParseJoin(Message m)
-            => (m.fields[0], m.fields.Length > 1 ? int.Parse(m.fields[1], Inv) : 0);
-
-        public static Message BuildReady(int playerId) => new Message
         {
-            type = MessageType.Ready,
-            reliable = true,
-            fields = new[] { playerId.ToString(Inv) }
-        };
+            using (var ms = new MemoryStream(m.payload))
+            {
+                string pseudo = ReadString(ms);
+                int team = ms.Position < ms.Length ? ReadInt(ms) : 0; // tolérant à un ancien JOIN sans équipe
+                return (pseudo, team);
+            }
+        }
 
-        public static int ParseReady(Message m) => int.Parse(m.fields[0], Inv);
+        // ---------- Ready ----------
+        // Payload : [playerId:4]
+
+        public static Message BuildReady(int playerId)
+        {
+            using (var ms = new MemoryStream(4))
+            {
+                WriteInt(ms, playerId);
+                return new Message { type = MessageType.Ready, reliable = true, payload = ms.ToArray() };
+            }
+        }
+
+        public static int ParseReady(Message m)
+        {
+            using (var ms = new MemoryStream(m.payload))
+                return ReadInt(ms);
+        }
+
+        // ---------- Welcome ----------
+        // Payload : [playerId:4]
 
         /// <summary>Attribution d'un identifiant joueur par le serveur.</summary>
-        public static Message BuildWelcome(int playerId) => new Message
+        public static Message BuildWelcome(int playerId)
         {
-            type = MessageType.Welcome,
-            reliable = true,
-            fields = new[] { playerId.ToString(Inv) }
-        };
+            using (var ms = new MemoryStream(4))
+            {
+                WriteInt(ms, playerId);
+                return new Message { type = MessageType.Welcome, reliable = true, payload = ms.ToArray() };
+            }
+        }
 
-        public static int ParseWelcome(Message m) => int.Parse(m.fields[0], Inv);
+        public static int ParseWelcome(Message m)
+        {
+            using (var ms = new MemoryStream(m.payload))
+                return ReadInt(ms);
+        }
+
+        // ---------- Lobby ----------
+        // Payload : [count:1] puis par joueur : [pseudoLen:2][pseudo:N][team:4][ready:1]
+        // Positionnel : index = playerId, slots libres encodés avec un pseudo vide.
 
         /// <summary>
         /// État du lobby diffusé par le serveur : pour chaque slot (indexé par id), pseudo + équipe
         /// + état prêt. Les arrays sont positionnels (longueur = MaxPlayers, "" pour les slots libres).
         /// </summary>
-        public static Message BuildLobby(string[] pseudos, int[] teams, bool[] ready) => new Message
+        public static Message BuildLobby(string[] pseudos, int[] teams, bool[] ready)
         {
-            type = MessageType.Lobby,
-            reliable = true,
-            fields = new[]
+            using (var ms = new MemoryStream(96))
             {
-                pseudos.Length.ToString(Inv),
-                string.Join(ListSep.ToString(), pseudos.Select(Sanitize)),
-                string.Join(ListSep.ToString(), teams.Select(t => t.ToString(Inv))),
-                string.Join(ListSep.ToString(), ready.Select(r => r ? "1" : "0"))
+                byte count = (byte)(pseudos != null ? pseudos.Length : 0);
+                ms.WriteByte(count);
+                for (int i = 0; i < count; i++)
+                {
+                    WriteString(ms, Sanitize(pseudos[i]));
+                    WriteInt(ms, teams != null && i < teams.Length ? teams[i] : 0);
+                    ms.WriteByte(ready != null && i < ready.Length && ready[i] ? (byte)1 : (byte)0);
+                }
+                return new Message { type = MessageType.Lobby, reliable = true, payload = ms.ToArray() };
             }
-        };
+        }
 
         /// <summary>Pseudos seuls (compat : nommage des paddles). Slots libres inclus comme "".</summary>
         public static string[] ParseLobby(Message m)
-            => m.fields.Length > 1 && m.fields[1].Length > 0
-               ? m.fields[1].Split(ListSep)
-               : Array.Empty<string>();
+        {
+            using (var ms = new MemoryStream(m.payload))
+            {
+                byte count = (byte)ms.ReadByte();
+                string[] pseudos = new string[count];
+                for (int i = 0; i < count; i++)
+                {
+                    pseudos[i] = ReadString(ms);
+                    ReadInt(ms);        // team (ignorée ici)
+                    ms.ReadByte();      // ready (ignoré ici)
+                }
+                return pseudos;
+            }
+        }
 
         /// <summary>Joueurs occupés du lobby (pseudo + équipe + prêt), pour l'UI de salle d'attente.</summary>
         public static LobbyPlayerInfo[] ParseLobbyDetailed(Message m)
         {
-            if (m.fields.Length < 2 || m.fields[1].Length == 0)
-                return Array.Empty<LobbyPlayerInfo>();
-
-            string[] pseudos = m.fields[1].Split(ListSep);
-            string[] teams = m.fields.Length > 2 && m.fields[2].Length > 0 ? m.fields[2].Split(ListSep) : Array.Empty<string>();
-            string[] ready = m.fields.Length > 3 && m.fields[3].Length > 0 ? m.fields[3].Split(ListSep) : Array.Empty<string>();
-
-            var list = new List<LobbyPlayerInfo>();
-            for (int i = 0; i < pseudos.Length; i++)
+            using (var ms = new MemoryStream(m.payload))
             {
-                if (string.IsNullOrEmpty(pseudos[i]))
-                    continue;
-                list.Add(new LobbyPlayerInfo
+                byte count = (byte)ms.ReadByte();
+                var list = new List<LobbyPlayerInfo>(count);
+                for (int i = 0; i < count; i++)
                 {
-                    id = i,
-                    pseudo = pseudos[i],
-                    team = i < teams.Length ? int.Parse(teams[i], Inv) : 0,
-                    ready = i < ready.Length && ready[i] == "1"
-                });
+                    string pseudo = ReadString(ms);
+                    int team = ReadInt(ms);
+                    bool ready = ms.ReadByte() != 0;
+                    if (string.IsNullOrEmpty(pseudo))
+                        continue;
+                    list.Add(new LobbyPlayerInfo { id = i, pseudo = pseudo, team = team, ready = ready });
+                }
+                return list.ToArray();
             }
-            return list.ToArray();
         }
 
-        /// <summary>Configuration de match (host → clients), diffusée de façon fiable.</summary>
-        public static Message BuildConfig(MatchSettings s) => new Message
-        {
-            type = MessageType.Config,
-            reliable = true,
-            fields = new[]
-            {
-                s.maxPlayers.ToString(Inv),
-                s.winType.ToString(Inv),
-                s.targetPoints.ToString(Inv),
-                F(s.duration),
-                Sanitize(s.teamAName), s.teamASkin.ToString(Inv),
-                Sanitize(s.teamBName), s.teamBSkin.ToString(Inv)
-            }
-        };
+        // ---------- Config ----------
+        // Payload : [maxPlayers:4][winType:4][targetPoints:4][duration:4]
+        //           [teamAName str][teamASkin:4][teamBName str][teamBSkin:4]
 
-        public static MatchSettings ParseConfig(Message m) => new MatchSettings
+        /// <summary>Configuration de match (host → clients), diffusée de façon fiable.</summary>
+        public static Message BuildConfig(MatchSettings s)
         {
-            maxPlayers = int.Parse(m.fields[0], Inv),
-            winType = int.Parse(m.fields[1], Inv),
-            targetPoints = int.Parse(m.fields[2], Inv),
-            duration = PF(m.fields[3]),
-            teamAName = m.fields[4],
-            teamASkin = int.Parse(m.fields[5], Inv),
-            teamBName = m.fields[6],
-            teamBSkin = int.Parse(m.fields[7], Inv)
-        };
+            using (var ms = new MemoryStream(48))
+            {
+                WriteInt(ms, s.maxPlayers);
+                WriteInt(ms, s.winType);
+                WriteInt(ms, s.targetPoints);
+                WriteFloat(ms, s.duration);
+                WriteString(ms, Sanitize(s.teamAName));
+                WriteInt(ms, s.teamASkin);
+                WriteString(ms, Sanitize(s.teamBName));
+                WriteInt(ms, s.teamBSkin);
+                return new Message { type = MessageType.Config, reliable = true, payload = ms.ToArray() };
+            }
+        }
+
+        public static MatchSettings ParseConfig(Message m)
+        {
+            using (var ms = new MemoryStream(m.payload))
+            {
+                return new MatchSettings
+                {
+                    maxPlayers = ReadInt(ms),
+                    winType = ReadInt(ms),
+                    targetPoints = ReadInt(ms),
+                    duration = ReadFloat(ms),
+                    teamAName = ReadString(ms),
+                    teamASkin = ReadInt(ms),
+                    teamBName = ReadString(ms),
+                    teamBSkin = ReadInt(ms)
+                };
+            }
+        }
+
+        // ---------- Start ----------
+        // Payload : vide (0 octet)
 
         /// <summary>Démarrage de la partie (aucun payload).</summary>
         public static Message BuildStart() => new Message
         {
             type = MessageType.Start,
             reliable = true,
-            fields = Array.Empty<string>()
+            payload = Array.Empty<byte>()
         };
+
+        // ---------- End ----------
+        // Payload : [winnerId:4]
 
         /// <summary>Fin de partie : identifiant du gagnant.</summary>
-        public static Message BuildEnd(int winnerId) => new Message
+        public static Message BuildEnd(int winnerId)
         {
-            type = MessageType.End,
-            reliable = true,
-            fields = new[] { winnerId.ToString(Inv) }
-        };
+            using (var ms = new MemoryStream(4))
+            {
+                WriteInt(ms, winnerId);
+                return new Message { type = MessageType.End, reliable = true, payload = ms.ToArray() };
+            }
+        }
 
-        public static int ParseEnd(Message m) => int.Parse(m.fields[0], Inv);
+        public static int ParseEnd(Message m)
+        {
+            using (var ms = new MemoryStream(m.payload))
+                return ReadInt(ms);
+        }
+
+        // ---------- Ack ----------
+        // Payload : [ackedSeq:4]
 
         /// <summary>Accusé de réception d'un message fiable.</summary>
-        public static Message BuildAck(uint ackedSeq) => new Message
+        public static Message BuildAck(uint ackedSeq)
         {
-            type = MessageType.Ack,
-            reliable = false,
-            fields = new[] { ackedSeq.ToString(Inv) }
-        };
+            byte[] p = BitConverter.GetBytes(ackedSeq);
+            return new Message { type = MessageType.Ack, reliable = false, payload = p };
+        }
 
-        public static uint ParseAck(Message m) => uint.Parse(m.fields[0], Inv);
+        public static uint ParseAck(Message m)
+        {
+            return BitConverter.ToUInt32(m.payload, 0);
+        }
 
         // ---------- Utilitaires ----------
 
-        static string F(float v) => v.ToString("R", Inv);
-        static float PF(string s) => float.Parse(s, NumberStyles.Float, Inv);
         static string Sanitize(string s) => s.Replace(FieldSep.ToString(), "").Replace(ListSep.ToString(), "");
     }
 }
