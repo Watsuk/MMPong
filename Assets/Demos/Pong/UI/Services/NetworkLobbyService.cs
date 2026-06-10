@@ -52,10 +52,11 @@ namespace MMPong.UI
             string pseudo = string.IsNullOrEmpty(session.Pseudo) ? "Hôte" : session.Pseudo;
             bootstrap.mode = GameMode.Host;
 
+            if (PongGameManager.Instance != null)
+                PongGameManager.Instance.SetActivePlayers(config.MaxPlayerCount);
+
             client = bootstrap.SetupHost(pseudo, out server);
             server.Configure(ToSettings(config));
-            if (PongGameManager.Instance != null)
-                PongGameManager.Instance.totalPlayers = config.MaxPlayerCount;
 
             Subscribe(client);
         }
@@ -125,6 +126,10 @@ namespace MMPong.UI
         {
             // Le client découvre la config du salon (noms d'équipes, condition de victoire…).
             session.MatchConfig = FromSettings(s);
+
+            if (PongGameManager.Instance != null)
+                PongGameManager.Instance.SetActivePlayers(s.maxPlayers);
+
             PlayersChanged?.Invoke(players); // pousse un rafraîchissement de l'UI (labels d'équipes)
         }
 

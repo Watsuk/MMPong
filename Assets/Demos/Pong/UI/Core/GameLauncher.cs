@@ -51,7 +51,7 @@ namespace MMPong.UI
 
             var config = MatchConfig.CreateRandom();
             if (PongGameManager.Instance != null)
-                PongGameManager.Instance.totalPlayers = config.MaxPlayerCount;
+                PongGameManager.Instance.SetActivePlayers(config.MaxPlayerCount);
 
             bootstrap.mode = GameMode.Local;
             manager?.HideHub();

@@ -194,4 +194,56 @@ public class PongGameManager : MonoBehaviour
             }
         }
     }
+
+    public void SetActivePlayers(int count)
+    {
+        totalPlayers = count;
+
+        // 1. Find all paddles currently in the scene (including inactive ones)
+        List<PongPaddle> paddlesInScene = new List<PongPaddle>(
+            FindObjectsByType<PongPaddle>(FindObjectsInactive.Include, FindObjectsSortMode.None)
+        );
+        paddlesInScene.Sort((a, b) => ((int)a.Player).CompareTo((int)b.Player));
+
+        // 2. If we need more than currently exist in the scene, spawn the missing ones
+        int existingCount = paddlesInScene.Count;
+        int playersToSpawn = Mathf.Clamp(totalPlayers - existingCount, 0, spawnPoints.Count);
+        for (int i = 0; i < playersToSpawn; i++)
+        {
+            int spawnIndex = existingCount - 2 + i;
+            if (spawnIndex >= 0 && spawnIndex < spawnPoints.Count)
+            {
+                GameObject newPaddle = Instantiate(paddlePrefab, spawnPoints[spawnIndex].position, spawnPoints[spawnIndex].rotation);
+                activePaddles.Add(newPaddle);
+                PongPaddle paddleScript = newPaddle.GetComponent<PongPaddle>();
+                if (paddleScript != null)
+                {
+                    paddleScript.Player = (PongPlayer)(existingCount + i + 1);
+                    bool isControllablePlayer = (existingCount + i < 2);
+                    paddleScript.DrivenExternally = !isControllablePlayer;
+                }
+                paddlesInScene.Add(paddleScript);
+            }
+        }
+
+        // 3. Set active state based on player index and totalPlayers
+        foreach (var p in paddlesInScene)
+        {
+            if (p != null)
+            {
+                bool active = (int)p.Player <= totalPlayers;
+                p.gameObject.SetActive(active);
+            }
+        }
+
+        // 4. Re-initialize game mappings
+        InitializeGame();
+
+        // 5. Notify active ClientStateApplier to refresh its cached paddles list
+        var applier = FindFirstObjectByType<MMPong.Network.ClientStateApplier>();
+        if (applier != null)
+        {
+            applier.RefreshPaddles();
+        }
+    }
 }

@@ -78,6 +78,13 @@ namespace MMPong.Network
             scoreDisplay = FindFirstObjectByType<PongScore>();
         }
 
+        public void RefreshPaddles()
+        {
+            paddles = FindObjectsByType<PongPaddle>(FindObjectsSortMode.None)
+                .OrderBy(p => (int)p.Player)
+                .ToArray();
+        }
+
         void OnEnable() => client.OnStateReceived += OnStateReceived;
         void OnDisable() => client.OnStateReceived -= OnStateReceived;
 
