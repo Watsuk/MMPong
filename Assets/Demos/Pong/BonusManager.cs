@@ -116,7 +116,25 @@ namespace MMPong
                         HasBonus = true;
                         if (PongGameManager.Instance != null && PongGameManager.Instance.CircleRadii != null)
                         {
-                            BonusCircleIndex = Random.Range(0, PongGameManager.Instance.CircleRadii.Length);
+                            System.Collections.Generic.List<int> activeCircleIndices = new System.Collections.Generic.List<int>();
+                            PongPaddle[] activePaddles = FindObjectsByType<PongPaddle>(FindObjectsSortMode.None);
+                            foreach (var paddle in activePaddles)
+                            {
+                                int idx = PongGameManager.Instance.GetCircleIndex(paddle);
+                                if (idx >= 0 && idx < PongGameManager.Instance.CircleRadii.Length && !activeCircleIndices.Contains(idx))
+                                {
+                                    activeCircleIndices.Add(idx);
+                                }
+                            }
+
+                            if (activeCircleIndices.Count > 0)
+                            {
+                                BonusCircleIndex = activeCircleIndices[Random.Range(0, activeCircleIndices.Count)];
+                            }
+                            else
+                            {
+                                BonusCircleIndex = Random.Range(0, PongGameManager.Instance.CircleRadii.Length);
+                            }
                         }
                         BonusAngle = Random.Range(0f, 360f);
                         despawnTimer = 5f;
