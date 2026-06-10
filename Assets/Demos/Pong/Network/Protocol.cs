@@ -244,6 +244,11 @@ namespace MMPong.Network
                 WriteInt(ms, s.bonusCircleIndex);
                 WriteFloat(ms, s.bonusAngle);
 
+                // Balle direction & vitesse
+                WriteFloat(ms, s.ballDir.x);
+                WriteFloat(ms, s.ballDir.y);
+                WriteFloat(ms, s.ballSpeed);
+
                 return new Message { type = MessageType.State, seq = s.seq, reliable = false, payload = ms.ToArray() };
             }
         }
@@ -274,6 +279,10 @@ namespace MMPong.Network
                 s.bonusCircleIndex = ReadInt(ms);
                 s.bonusAngle = ReadFloat(ms);
 
+                // Balle direction & vitesse
+                s.ballDir = new Vector2(ReadFloat(ms), ReadFloat(ms));
+                s.ballSpeed = ReadFloat(ms);
+
                 return s;
             }
         }
@@ -281,13 +290,12 @@ namespace MMPong.Network
         // ---------- Join ----------
         // Payload : [pseudoLen:2][pseudo:N][team:4]
 
-        /// <summary>Demande de connexion (pseudo nettoyé des séparateurs) + équipe choisie.</summary>
-        public static Message BuildJoin(string pseudo, int teamIndex)
+        public static Message BuildJoin(string pseudo, int team)
         {
             using (var ms = new MemoryStream(32))
             {
                 WriteString(ms, Sanitize(pseudo));
-                WriteInt(ms, teamIndex);
+                WriteInt(ms, team);
                 return new Message { type = MessageType.Join, reliable = true, payload = ms.ToArray() };
             }
         }

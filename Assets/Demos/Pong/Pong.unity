@@ -2290,8 +2290,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::MMPong.Network.GameBootstrap
   mode: 2
   listenPort: 25000
-  clientPort: 26000
-  serverIp: 172.20.10.12
+  clientPort: 26001
+  serverIp: 127.0.0.1
 --- !u!4 &1015289708
 Transform:
   m_ObjectHideFlags: 0
@@ -11535,6 +11535,7 @@ MonoBehaviour:
   Panel: {fileID: 1396659331}
   PlayerLeft: {fileID: 2130213939}
   PlayerRight: {fileID: 788302282}
+  fadeDuration: 0.5
 --- !u!1 &2030656710
 GameObject:
   m_ObjectHideFlags: 0

@@ -178,6 +178,7 @@ public class PongPaddle : MonoBehaviour
     {
         if (isLocalPlayerSet) return;
         isLocalPlayerSet = true;
+        RemoteDisplay = false;
 
         GameObject outline = new GameObject("Outline");
         outline.transform.SetParent(this.transform);
