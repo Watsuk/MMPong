@@ -153,6 +153,13 @@ namespace MMPong.Network
             byte[] bytes = Protocol.Encode(Protocol.BuildState(state));
             foreach (var ep in registry.Endpoints)
                 transport.Send(bytes, ep);
+
+            if (state.phase == GamePhase.GameOver && !match.IsRematchWaiting)
+            {
+                match.PrepareRematch();
+                for (int i = 0; i < readyById.Length; i++) readyById[i] = false;
+                BroadcastLobby();
+            }
         }
 
         void OnDisable()
