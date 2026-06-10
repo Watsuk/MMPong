@@ -117,6 +117,8 @@ namespace MMPong.Network
             client.OnLobbyReceived += OnLobbyReceived;
             client.OnConfigReceived += OnConfigReceived;
             client.OnGameStarted += OnGameStarted;
+            var hostRoster = clientGo.AddComponent<TeamRosterHUD>();
+            client.OnLobbyDetailed += hostRoster.SetPlayers;
             clientGo.AddComponent<ClientStateLogger>();
             clientGo.AddComponent<DevReadyTrigger>().client = client;
 
@@ -150,6 +152,8 @@ namespace MMPong.Network
             client.OnLobbyReceived += OnLobbyReceived;
             client.OnConfigReceived += OnConfigReceived;
             client.OnGameStarted += OnGameStarted;
+            var roster = clientGo.AddComponent<TeamRosterHUD>();
+            client.OnLobbyDetailed += roster.SetPlayers;
             clientGo.AddComponent<ClientStateApplier>();   // applique les STATE reçus à la scène
             clientGo.AddComponent<ClientStateLogger>();
             clientGo.AddComponent<DevReadyTrigger>().client = client;
