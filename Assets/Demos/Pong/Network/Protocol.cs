@@ -132,6 +132,59 @@ namespace MMPong.Network
             ms.Write(b, 0, 4);
         }
 
+        // ========== Quantification des angles et positions ==========
+        // Algorithme : on mappe un angle en degrés [0, 360) sur un entier
+        // non-signé 16 bits [0, 65535]. Cela donne une précision de
+        // 360 / 65536 ≈ 0,0055° par pas, imperceptible à l'œil.
+        // Avantage : 2 octets au lieu de 4 par angle, soit −50 % par champ.
+        //
+        // Pour les positions de la balle, on utilise un entier signé 16 bits
+        // avec un facteur d'échelle fixe (range ±32.767 unités, précision
+        // ~0,001 unité). Suffisant pour un terrain de Pong typique.
+
+        /// <summary>
+        /// Quantifie un angle (degrés) en ushort [0, 65535].
+        /// L'angle est d'abord normalisé dans [0, 360) avant le mapping.
+        /// </summary>
+        static ushort QuantizeAngle(float degrees)
+        {
+            float normalized = ((degrees % 360f) + 360f) % 360f; // [0, 360)
+            return (ushort)Mathf.Clamp(Mathf.RoundToInt(normalized * 65535f / 360f), 0, 65535);
+        }
+
+        /// <summary>
+        /// Dé-quantifie un ushort [0, 65535] en angle (degrés) [0, 360).
+        /// </summary>
+        static float DequantizeAngle(ushort q)
+        {
+            return q * 360f / 65535f;
+        }
+
+        /// <summary>Quantifie une position flottante en short (facteur ×1000).</summary>
+        static short QuantizePos(float v)
+        {
+            return (short)Mathf.Clamp(Mathf.RoundToInt(v * 1000f), short.MinValue, short.MaxValue);
+        }
+
+        /// <summary>Dé-quantifie un short en position flottante (÷1000).</summary>
+        static float DequantizePos(short q)
+        {
+            return q / 1000f;
+        }
+
+        static void WriteShort(MemoryStream ms, short v)
+        {
+            ms.WriteByte((byte)v);
+            ms.WriteByte((byte)(v >> 8));
+        }
+
+        static short ReadShort(MemoryStream ms)
+        {
+            int lo = ms.ReadByte();
+            int hi = ms.ReadByte();
+            return (short)(lo | (hi << 8));
+        }
+
         static void WriteInt(MemoryStream ms, int v)
         {
             byte[] b = BitConverter.GetBytes(v);
@@ -209,29 +262,37 @@ namespace MMPong.Network
         }
 
         // ---------- State ----------
-        // Payload : [ballPos.x:4][ballPos.y:4][ballOwner:4][phase:1][winner:4]
-        //           [paddleCount:1][paddleAngle0:4]...[scoreCount:1][score0:4]...
-        //           [hasBonus:1][bonusCircleIndex:4][bonusAngle:4]
+        // Payload quantifié (v2 — optimisation bande passante) :
+        // [ballPos.x:2 (short quantifié)][ballPos.y:2][ballOwner:4][phase:1][winner:4]
+        // [paddleCount:1][paddleAngle0:2 (ushort quantifié)]...
+        // [scoreCount:1][score0:4]...
+        // [hasBonus:1][bonusCircleIndex:4][bonusAngle:2 (ushort quantifié)]
+        //
+        // Économie vs. v1 (floats bruts) pour 2 joueurs :
+        //   ballPos : 8 → 4  (−4 octets)
+        //   2 paddles : 8 → 4  (−4 octets)
+        //   bonusAngle : 4 → 2  (−2 octets)
+        //   Total : −10 octets par paquet × 30 Hz = −300 octets/s
 
         /// <summary>Snapshot d'état (le <c>seq</c> du message reprend celui du GameState).</summary>
         public static Message BuildState(GameState s)
         {
             using (var ms = new MemoryStream(64))
             {
-                // Balle
-                WriteFloat(ms, s.ballPos.x);
-                WriteFloat(ms, s.ballPos.y);
+                // Balle — position quantifiée en short (2 octets × 2 au lieu de float × 2)
+                WriteShort(ms, QuantizePos(s.ballPos.x));
+                WriteShort(ms, QuantizePos(s.ballPos.y));
                 WriteInt(ms, s.ballOwner);
 
                 // Phase & winner
                 ms.WriteByte((byte)s.phase);
                 WriteInt(ms, s.winner);
 
-                // Paddles (tableau variable précédé de son compteur)
+                // Paddles — angles quantifiés en ushort (2 octets au lieu de 4 par paddle)
                 byte paddleCount = (byte)(s.paddleAngle != null ? s.paddleAngle.Length : 0);
                 ms.WriteByte(paddleCount);
                 for (int i = 0; i < paddleCount; i++)
-                    WriteFloat(ms, s.paddleAngle[i]);
+                    WriteUShort(ms, QuantizeAngle(s.paddleAngle[i]));
 
                 // Scores (tableau variable précédé de son compteur)
                 byte scoreCount = (byte)(s.scores != null ? s.scores.Length : 0);
@@ -239,10 +300,10 @@ namespace MMPong.Network
                 for (int i = 0; i < scoreCount; i++)
                     WriteInt(ms, s.scores[i]);
 
-                // Bonus
+                // Bonus — angle quantifié en ushort
                 ms.WriteByte(s.hasBonus ? (byte)1 : (byte)0);
                 WriteInt(ms, s.bonusCircleIndex);
-                WriteFloat(ms, s.bonusAngle);
+                WriteUShort(ms, QuantizeAngle(s.bonusAngle));
 
                 return new Message { type = MessageType.State, seq = s.seq, reliable = false, payload = ms.ToArray() };
             }
@@ -254,16 +315,18 @@ namespace MMPong.Network
             {
                 var s = new GameState { seq = m.seq };
 
-                s.ballPos = new Vector2(ReadFloat(ms), ReadFloat(ms));
+                // Balle — dé-quantification short → float
+                s.ballPos = new Vector2(DequantizePos(ReadShort(ms)), DequantizePos(ReadShort(ms)));
                 s.ballOwner = ReadInt(ms);
 
                 s.phase = (GamePhase)ms.ReadByte();
                 s.winner = ReadInt(ms);
 
+                // Paddles — dé-quantification ushort → float (degrés)
                 byte paddleCount = (byte)ms.ReadByte();
                 s.paddleAngle = new float[paddleCount];
                 for (int i = 0; i < paddleCount; i++)
-                    s.paddleAngle[i] = ReadFloat(ms);
+                    s.paddleAngle[i] = DequantizeAngle(ReadUShort(ms));
 
                 byte scoreCount = (byte)ms.ReadByte();
                 s.scores = new int[scoreCount];
@@ -272,7 +335,8 @@ namespace MMPong.Network
 
                 s.hasBonus = ms.ReadByte() != 0;
                 s.bonusCircleIndex = ReadInt(ms);
-                s.bonusAngle = ReadFloat(ms);
+                // Bonus — dé-quantification ushort → float (degrés)
+                s.bonusAngle = DequantizeAngle(ReadUShort(ms));
 
                 return s;
             }

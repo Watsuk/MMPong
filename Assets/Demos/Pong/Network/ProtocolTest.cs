@@ -16,28 +16,34 @@ namespace MMPong.Network
             var (id, dir) = Protocol.ParseInput(Roundtrip(Protocol.BuildInput(1, -1f)));
             Check("Input", id == 1 && Mathf.Approximately(dir, -1f));
 
-            // State (jeu circulaire, 2 joueurs)
+            // State (jeu circulaire, 2 joueurs) — tolérance pour la quantification
+            // Angles quantifiés en ushort → précision ≈ 0.0055° ; positions en short ×1000 → ≈ 0.001
             var g = new GameState
             {
                 seq = 184,
                 ballPos = new Vector2(2.31f, -0.5f),
                 ballOwner = 1,
-                paddleAngle = new[] { 37.5f, -128.0f },
+                paddleAngle = new[] { 37.5f, 232.0f }, // angles positifs pour test (quantif normalise dans [0,360))
                 scores = new[] { 3, 1 },
                 phase = GamePhase.GameOver,
                 winner = 0
             };
             var g2 = Protocol.ParseState(Roundtrip(Protocol.BuildState(g)));
-            Check("State", g2.seq == 184
-                && Mathf.Approximately(g2.ballPos.x, 2.31f)
-                && Mathf.Approximately(g2.ballPos.y, -0.5f)
+            Check("State (entiers)", g2.seq == 184
                 && g2.ballOwner == 1
                 && g2.paddleAngle.Length == 2
-                && Mathf.Approximately(g2.paddleAngle[0], 37.5f)
-                && Mathf.Approximately(g2.paddleAngle[1], -128.0f)
                 && g2.scores[0] == 3 && g2.scores[1] == 1
                 && g2.phase == GamePhase.GameOver
                 && g2.winner == 0);
+            Check("State (ballPos quantifiée)", Near(g2.ballPos.x, 2.31f, 0.002f) && Near(g2.ballPos.y, -0.5f, 0.002f));
+            Check("State (paddleAngle quantifié)", Near(g2.paddleAngle[0], 37.5f, 0.006f) && Near(g2.paddleAngle[1], 232.0f, 0.006f));
+
+            // Quantification dédiée : vérifier que la taille du payload STATE est réduite
+            var stateMsg = Protocol.BuildState(g);
+            int payloadSize = stateMsg.payload.Length;
+            // v2 (quantifié) : ballPos 4 + ballOwner 4 + phase 1 + winner 4 + paddleCount 1
+            //   + 2 paddles × 2 + scoreCount 1 + 2 scores × 4 + hasBonus 1 + bonusCircle 4 + bonusAngle 2 = 30
+            Check("State payload compact (quantifié)", payloadSize <= 32);
 
             // Join + nettoyage des séparateurs + équipe
             var join = Protocol.ParseJoin(Roundtrip(Protocol.BuildJoin("ali|ce,bob", 1)));
@@ -168,5 +174,8 @@ namespace MMPong.Network
             if (passed) ok++;
             else Debug.LogError($"[ProtocolTest] {name} KO");
         }
+
+        /// <summary>Comparaison flottante avec tolérance (utile pour les champs quantifiés).</summary>
+        static bool Near(float a, float b, float tol) => Mathf.Abs(a - b) <= tol;
     }
 }
