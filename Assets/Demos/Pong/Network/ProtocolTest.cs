@@ -43,10 +43,11 @@ namespace MMPong.Network
             var join = Protocol.ParseJoin(Roundtrip(Protocol.BuildJoin("ali|ce,bob", 1)));
             Check("Join (sanitize + team)", join.pseudo == "alicebob" && join.team == 1);
 
-            // Lobby (pseudos + équipes + prêt positionnels)
+            // Lobby (pseudos + équipes + prêt + connecté, positionnels)
             var lobbyMsg = Roundtrip(Protocol.BuildLobby(
                 new[] { "alice", "bob", "charlie", "" },
                 new[] { 0, 1, 0, 0 },
+                new[] { true, false, true, false },
                 new[] { true, false, true, false }));
             var lobby = Protocol.ParseLobby(lobbyMsg);
             Check("Lobby (pseudos)", lobby.Length == 4 && lobby[2] == "charlie");
@@ -54,6 +55,7 @@ namespace MMPong.Network
             Check("Lobby (détaillé)", lobbyDetail.Length == 3
                 && lobbyDetail[2].pseudo == "charlie" && lobbyDetail[2].team == 0 && lobbyDetail[2].ready
                 && lobbyDetail[1].team == 1 && !lobbyDetail[1].ready);
+            Check("Lobby (connecté)", lobbyDetail[2].connected && !lobbyDetail[1].connected);
 
             // Config (round-trip)
             var cfg = Protocol.ParseConfig(Roundtrip(Protocol.BuildConfig(new MatchSettings
@@ -155,6 +157,19 @@ namespace MMPong.Network
             hubSent.Clear();
             hub.BroadcastReliable(new[] { ep1, ep2 }, Protocol.BuildStart());
             Check("Hub broadcast = un envoi par pair", hubSent.Count == 2);
+
+            // TimeoutPresenceTracker (présence par timeout d'inactivité, temps injecté)
+            var presence = new TimeoutPresenceTracker(ClientRegistry.MaxPlayers, 3f);
+            presence.Register(0, 0f);
+            Check("Presence connecté au Register", presence.IsConnected(0));
+            Check("Presence stable sans changement", !presence.Evaluate(1f));
+            Check("Presence bascule déconnecté au timeout", presence.Evaluate(4.01f));
+            Check("Presence est déconnecté", !presence.IsConnected(0));
+            presence.MarkSeen(0, 5f);
+            Check("Presence bascule reconnecté à l'activité", presence.Evaluate(5f));
+            Check("Presence est reconnecté", presence.IsConnected(0));
+            Check("Presence flags positionnels",
+                presence.ConnectedFlags().Length == ClientRegistry.MaxPlayers && presence.ConnectedFlags()[0]);
 
             if (ok == total) Debug.Log($"[ProtocolTest] {ok}/{total} OK");
             else Debug.LogError($"[ProtocolTest] {ok}/{total} OK — voir erreurs ci-dessus");

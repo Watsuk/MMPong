@@ -17,6 +17,9 @@ namespace MMPong.Network
         public int tickRate = 30;
         public int expectedPlayers = 2;
 
+        /// <summary>Délai (s) sans aucun paquet d'un joueur au-delà duquel il est marqué déconnecté.</summary>
+        public float presenceTimeout = 3f;
+
         /// <summary>Colle vers la simulation (posée par GameBootstrap). Sans elle, le serveur ne simule rien.</summary>
         public ServerGameBridge bridge;
 
@@ -24,6 +27,7 @@ namespace MMPong.Network
         ClientRegistry registry;
         ReliableHub hub;
         MatchCoordinator match;
+        IClientPresenceTracker presence;
         float[] pendingInput;
         GameState state;
         uint tickSeq;
@@ -49,6 +53,7 @@ namespace MMPong.Network
             registry = new ClientRegistry();
             hub = new ReliableHub((bytes, ep) => transport.Send(bytes, ep));
             match = new MatchCoordinator(expectedPlayers);
+            presence = new TimeoutPresenceTracker(ClientRegistry.MaxPlayers, presenceTimeout);
             pendingInput = new float[ClientRegistry.MaxPlayers];
 
             // Valeurs par défaut si aucun Configure() (compat : démarrage hors hub).
@@ -66,6 +71,10 @@ namespace MMPong.Network
         void OnData(byte[] data, IPEndPoint from)
         {
             Message m = Protocol.Decode(data);
+
+            // Tout paquet d'un client connu prouve sa présence (heartbeat implicite via INPUT 30 Hz).
+            // Placé avant les retours ACK/doublon : ces paquets comptent aussi comme activité.
+            if (registry.TryFindId(from, out int seenId)) presence.MarkSeen(seenId, Time.time);
 
             if (m.type == MessageType.Ack) { hub.HandleAck(from, Protocol.ParseAck(m)); return; }
             if (m.reliable && !hub.ReceiveReliable(from, m)) return;
@@ -89,6 +98,7 @@ namespace MMPong.Network
             }
 
             if (id >= 0 && id < teamById.Length) teamById[id] = team;
+            presence.Register(id, Time.time);
 
             hub.SendReliable(from, Protocol.BuildWelcome(id));
             hub.SendReliable(from, Protocol.BuildConfig(settings)); // le client reçoit la config du salon
@@ -99,7 +109,7 @@ namespace MMPong.Network
 
         void BroadcastLobby()
             => hub.BroadcastReliable(registry.Endpoints,
-                Protocol.BuildLobby(registry.Pseudos(), teamById, readyById));
+                Protocol.BuildLobby(registry.Pseudos(), teamById, readyById, presence.ConnectedFlags()));
 
         /// <summary>Démarrage autoritaire forcé par le host (bouton « Démarrer »).</summary>
         public void ForceStart()
@@ -142,6 +152,9 @@ namespace MMPong.Network
             }
 
             hub.TickAll(Time.deltaTime);
+
+            // Présence : recalcule les états connecté/déconnecté et ne rediffuse qu'au basculement.
+            if (presence.Evaluate(Time.time)) BroadcastLobby();
         }
 
         void Tick()

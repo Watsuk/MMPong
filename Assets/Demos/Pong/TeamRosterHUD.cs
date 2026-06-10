@@ -13,10 +13,9 @@ using MMPong.Network;
 /// (pseudo + équipe par joueur). Composant créé au runtime par <c>GameBootstrap</c> (comme
 /// <c>ClientStateApplier</c>) : aucune dépendance de scène hormis le HUD de score existant.
 ///
-/// <b>Périmètre actuel (UI uniquement)</b> : l'état connecté/déconnecté n'est pas encore piloté
-/// par le serveur. Tous les joueurs présents au lobby sont considérés connectés (point vert).
-/// <see cref="SetConnected"/> est le point de couture pour la future détection de déconnexion
-/// côté serveur (basculera le point en rouge).
+/// L'état connecté/déconnecté est piloté par le <b>serveur autoritatif</b> : il provient de
+/// <see cref="LobbyPlayerInfo.connected"/> (détection de timeout côté serveur), propagé dans
+/// le message LOBBY. Le HUD ne fait que l'afficher (point vert/rouge clignotant).
 /// </summary>
 public class TeamRosterHUD : MonoBehaviour
 {
@@ -44,9 +43,9 @@ public class TeamRosterHUD : MonoBehaviour
     static Sprite circleSprite;
 
     /// <summary>
-    /// (Re)construit la liste des joueurs par équipe. Appelé à chaque LOBBY reçu
-    /// (<see cref="NetworkClient.OnLobbyDetailed"/>). L'état connecté connu est préservé
-    /// d'une mise à jour à l'autre.
+    /// (Re)construit la liste des joueurs par équipe à partir de l'état serveur. Appelé à chaque
+    /// LOBBY reçu (<see cref="NetworkClient.OnLobbyDetailed"/>) : pseudos, équipe et état connecté
+    /// proviennent tous du serveur (source de vérité unique).
     /// </summary>
     public void SetPlayers(LobbyPlayerInfo[] players)
     {
@@ -54,9 +53,6 @@ public class TeamRosterHUD : MonoBehaviour
         if (leftContainer == null && rightContainer == null) return;
         if (players == null) players = System.Array.Empty<LobbyPlayerInfo>();
 
-        // Mémorise l'état connecté courant avant reconstruction
-        var prevConnected = new Dictionary<int, bool>();
-        foreach (var r in rows) prevConnected[r.playerId] = r.connected;
         ClearRows();
 
         int leftCount = 0, rightCount = 0;
@@ -67,19 +63,8 @@ public class TeamRosterHUD : MonoBehaviour
             RectTransform container = toLeft ? leftContainer : rightContainer;
             if (container == null) continue;
             int index = toLeft ? leftCount++ : rightCount++;
-            bool connected = !prevConnected.TryGetValue(p.id, out bool c) || c;
-            CreateRow(container, p, index, toLeft, connected);
+            CreateRow(container, p, index, toLeft, p.connected);
         }
-    }
-
-    /// <summary>
-    /// Bascule l'état connecté/déconnecté d'un joueur. Point de couture pour la future
-    /// détection de déconnexion côté serveur (non câblé pour l'instant).
-    /// </summary>
-    public void SetConnected(int playerId, bool connected)
-    {
-        foreach (var r in rows)
-            if (r.playerId == playerId) r.connected = connected;
     }
 
     void Update()

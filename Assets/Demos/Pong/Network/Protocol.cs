@@ -32,6 +32,7 @@ namespace MMPong.Network
         public string pseudo;
         public int team;
         public bool ready;
+        public bool connected;
     }
 
     /// <summary>
@@ -340,14 +341,15 @@ namespace MMPong.Network
         }
 
         // ---------- Lobby ----------
-        // Payload : [count:1] puis par joueur : [pseudoLen:2][pseudo:N][team:4][ready:1]
+        // Payload : [count:1] puis par joueur : [pseudoLen:2][pseudo:N][team:4][ready:1][connected:1]
         // Positionnel : index = playerId, slots libres encodés avec un pseudo vide.
 
         /// <summary>
         /// État du lobby diffusé par le serveur : pour chaque slot (indexé par id), pseudo + équipe
-        /// + état prêt. Les arrays sont positionnels (longueur = MaxPlayers, "" pour les slots libres).
+        /// + état prêt + état connecté. Les arrays sont positionnels (longueur = MaxPlayers,
+        /// "" pour les slots libres).
         /// </summary>
-        public static Message BuildLobby(string[] pseudos, int[] teams, bool[] ready)
+        public static Message BuildLobby(string[] pseudos, int[] teams, bool[] ready, bool[] connected)
         {
             using (var ms = new MemoryStream(96))
             {
@@ -358,6 +360,7 @@ namespace MMPong.Network
                     WriteString(ms, Sanitize(pseudos[i]));
                     WriteInt(ms, teams != null && i < teams.Length ? teams[i] : 0);
                     ms.WriteByte(ready != null && i < ready.Length && ready[i] ? (byte)1 : (byte)0);
+                    ms.WriteByte(connected != null && i < connected.Length && connected[i] ? (byte)1 : (byte)0);
                 }
                 return new Message { type = MessageType.Lobby, reliable = true, payload = ms.ToArray() };
             }
@@ -375,12 +378,13 @@ namespace MMPong.Network
                     pseudos[i] = ReadString(ms);
                     ReadInt(ms);        // team (ignorée ici)
                     ms.ReadByte();      // ready (ignoré ici)
+                    ms.ReadByte();      // connected (ignoré ici)
                 }
                 return pseudos;
             }
         }
 
-        /// <summary>Joueurs occupés du lobby (pseudo + équipe + prêt), pour l'UI de salle d'attente.</summary>
+        /// <summary>Joueurs occupés du lobby (pseudo + équipe + prêt + connecté), pour l'UI.</summary>
         public static LobbyPlayerInfo[] ParseLobbyDetailed(Message m)
         {
             using (var ms = new MemoryStream(m.payload))
@@ -392,9 +396,10 @@ namespace MMPong.Network
                     string pseudo = ReadString(ms);
                     int team = ReadInt(ms);
                     bool ready = ms.ReadByte() != 0;
+                    bool connected = ms.ReadByte() != 0;
                     if (string.IsNullOrEmpty(pseudo))
                         continue;
-                    list.Add(new LobbyPlayerInfo { id = i, pseudo = pseudo, team = team, ready = ready });
+                    list.Add(new LobbyPlayerInfo { id = i, pseudo = pseudo, team = team, ready = ready, connected = connected });
                 }
                 return list.ToArray();
             }
