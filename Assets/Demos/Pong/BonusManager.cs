@@ -116,27 +116,20 @@ namespace MMPong
                         HasBonus = true;
                         if (PongGameManager.Instance != null && PongGameManager.Instance.CircleRadii != null)
                         {
-                            // Trouver les cercles contenant au moins un joueur actif
-                            System.Collections.Generic.List<int> activeCircles = new System.Collections.Generic.List<int>();
-                            PongPaddle[] paddles = FindObjectsByType<PongPaddle>(FindObjectsSortMode.None);
-                            foreach (var paddle in paddles)
+                            System.Collections.Generic.List<int> activeCircleIndices = new System.Collections.Generic.List<int>();
+                            PongPaddle[] activePaddles = FindObjectsByType<PongPaddle>(FindObjectsSortMode.None);
+                            foreach (var paddle in activePaddles)
                             {
-                                if (paddle != null && IsPaddleActivePlayer(paddle))
+                                int idx = PongGameManager.Instance.GetCircleIndex(paddle);
+                                if (idx >= 0 && idx < PongGameManager.Instance.CircleRadii.Length && !activeCircleIndices.Contains(idx))
                                 {
-                                    int circleIdx = PongGameManager.Instance.GetCircleIndex(paddle);
-                                    if (circleIdx >= 0 && circleIdx < PongGameManager.Instance.CircleRadii.Length)
-                                    {
-                                        if (!activeCircles.Contains(circleIdx))
-                                        {
-                                            activeCircles.Add(circleIdx);
-                                        }
-                                    }
+                                    activeCircleIndices.Add(idx);
                                 }
                             }
 
-                            if (activeCircles.Count > 0)
+                            if (activeCircleIndices.Count > 0)
                             {
-                                BonusCircleIndex = activeCircles[Random.Range(0, activeCircles.Count)];
+                                BonusCircleIndex = activeCircleIndices[Random.Range(0, activeCircleIndices.Count)];
                             }
                             else
                             {
