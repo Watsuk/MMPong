@@ -244,6 +244,26 @@ namespace MMPong
             }
         }
 
+        bool IsPaddleActivePlayer(PongPaddle paddle)
+        {
+            if (paddle == null) return false;
+
+            // 1. En mode réseau (Host/Server présent)
+            var server = FindAnyObjectByType<MMPong.Network.NetworkServer>();
+            if (server != null)
+            {
+                return (int)paddle.Player <= server.expectedPlayers;
+            }
+
+            // 2. En mode local (pas de serveur)
+            if (PongGameManager.Instance != null)
+            {
+                return (int)paddle.Player <= PongGameManager.Instance.totalPlayers;
+            }
+
+            return true;
+        }
+
         void PlayClip(AudioClip clip)
         {
             if (clip != null && audioSource != null)
