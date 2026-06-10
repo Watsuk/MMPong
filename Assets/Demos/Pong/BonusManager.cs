@@ -116,7 +116,32 @@ namespace MMPong
                         HasBonus = true;
                         if (PongGameManager.Instance != null && PongGameManager.Instance.CircleRadii != null)
                         {
-                            BonusCircleIndex = Random.Range(0, PongGameManager.Instance.CircleRadii.Length);
+                            // Trouver les cercles contenant au moins un joueur actif
+                            System.Collections.Generic.List<int> activeCircles = new System.Collections.Generic.List<int>();
+                            PongPaddle[] paddles = FindObjectsByType<PongPaddle>(FindObjectsSortMode.None);
+                            foreach (var paddle in paddles)
+                            {
+                                if (paddle != null && IsPaddleActivePlayer(paddle))
+                                {
+                                    int circleIdx = PongGameManager.Instance.GetCircleIndex(paddle);
+                                    if (circleIdx >= 0 && circleIdx < PongGameManager.Instance.CircleRadii.Length)
+                                    {
+                                        if (!activeCircles.Contains(circleIdx))
+                                        {
+                                            activeCircles.Add(circleIdx);
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (activeCircles.Count > 0)
+                            {
+                                BonusCircleIndex = activeCircles[Random.Range(0, activeCircles.Count)];
+                            }
+                            else
+                            {
+                                BonusCircleIndex = Random.Range(0, PongGameManager.Instance.CircleRadii.Length);
+                            }
                         }
                         BonusAngle = Random.Range(0f, 360f);
                         despawnTimer = 5f;
@@ -224,6 +249,26 @@ namespace MMPong
                     bonusVisual.SetActive(false);
                 }
             }
+        }
+
+        bool IsPaddleActivePlayer(PongPaddle paddle)
+        {
+            if (paddle == null) return false;
+
+            // 1. En mode réseau (Host/Server présent)
+            var server = FindAnyObjectByType<MMPong.Network.NetworkServer>();
+            if (server != null)
+            {
+                return (int)paddle.Player <= server.expectedPlayers;
+            }
+
+            // 2. En mode local (pas de serveur)
+            if (PongGameManager.Instance != null)
+            {
+                return (int)paddle.Player <= PongGameManager.Instance.totalPlayers;
+            }
+
+            return true;
         }
 
         void PlayClip(AudioClip clip)
