@@ -36,6 +36,16 @@ public class PongBall : MonoBehaviour
     // serveur). Inerte par défaut → jeu local non affecté.
     public bool RemoteDisplay = false;
 
+    public Vector3 BallDirection {
+        get => Direction;
+        set => Direction = value.normalized;
+    }
+
+    public float BallSpeed {
+        get => Speed;
+        set => Speed = value;
+    }
+
     public PongBallState State {
       get {
         return _State;

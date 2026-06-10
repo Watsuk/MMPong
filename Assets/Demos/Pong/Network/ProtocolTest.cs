@@ -25,7 +25,9 @@ namespace MMPong.Network
                 paddleAngle = new[] { 37.5f, -128.0f },
                 scores = new[] { 3, 1 },
                 phase = GamePhase.GameOver,
-                winner = 0
+                winner = 0,
+                ballDir = new Vector2(0.707f, -0.707f),
+                ballSpeed = 5.5f
             };
             var g2 = Protocol.ParseState(Roundtrip(Protocol.BuildState(g)));
             Check("State", g2.seq == 184
@@ -37,7 +39,10 @@ namespace MMPong.Network
                 && Mathf.Approximately(g2.paddleAngle[1], -128.0f)
                 && g2.scores[0] == 3 && g2.scores[1] == 1
                 && g2.phase == GamePhase.GameOver
-                && g2.winner == 0);
+                && g2.winner == 0
+                && Mathf.Approximately(g2.ballDir.x, 0.707f)
+                && Mathf.Approximately(g2.ballDir.y, -0.707f)
+                && Mathf.Approximately(g2.ballSpeed, 5.5f));
 
             // Join + nettoyage des séparateurs + équipe
             var join = Protocol.ParseJoin(Roundtrip(Protocol.BuildJoin("ali|ce,bob", 1)));

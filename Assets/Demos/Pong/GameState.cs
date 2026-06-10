@@ -42,5 +42,11 @@ namespace MMPong
 
         /// <summary>Angle du bonus sur son cercle.</summary>
         public float bonusAngle;
+
+        /// <summary>Direction de la balle (vitesse normalisée).</summary>
+        public Vector2 ballDir;
+
+        /// <summary>Vitesse scalaire de la balle.</summary>
+        public float ballSpeed;
     }
 }

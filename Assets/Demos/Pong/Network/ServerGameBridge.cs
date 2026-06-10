@@ -56,7 +56,9 @@ namespace MMPong.Network
                 winner = winner,
                 hasBonus = BonusManager.Instance != null && BonusManager.Instance.HasBonus,
                 bonusCircleIndex = BonusManager.Instance != null ? BonusManager.Instance.BonusCircleIndex : 0,
-                bonusAngle = BonusManager.Instance != null ? BonusManager.Instance.BonusAngle : 0f
+                bonusAngle = BonusManager.Instance != null ? BonusManager.Instance.BonusAngle : 0f,
+                ballDir = ball != null ? (Vector2)ball.BallDirection : Vector2.zero,
+                ballSpeed = ball != null ? ball.BallSpeed : 0f
             };
         }
 

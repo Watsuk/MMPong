@@ -46,6 +46,16 @@ namespace MMPong.Network
         /// </summary>
         const float ReconcileSpeed = 0.15f;
 
+        [Header("Ball Prediction")]
+        [Tooltip("Active la prédiction client de la trajectoire de la balle (Extrapolating/Dead Reckoning) à la place de l'interpolation simple.")]
+        public bool predictBall = true;
+
+        [Tooltip("Vitesse de lissage de la position prédite de la balle.")]
+        public float ballPredictLerpSpeed = 15f;
+
+        [Tooltip("Seuil de distance au-delà duquel la balle se téléporte directement à la position prédite.")]
+        public float ballSnapThreshold = 2f;
+
         NetworkClient client;
         PongPaddle[] paddles;
         PongBall ball;
@@ -91,7 +101,11 @@ namespace MMPong.Network
 
             // Valeurs discrètes : appliquées immédiatement (pas interpolables)
             if (ball != null)
+            {
                 ball.ApplyVisualState(s.ballOwner);
+                ball.BallDirection = s.ballDir;
+                ball.BallSpeed = s.ballSpeed;
+            }
 
             // Synchronise les scores affichés depuis l'état serveur
             if (scoreDisplay != null && s.scores != null && s.scores.Length >= 2)
@@ -151,11 +165,39 @@ namespace MMPong.Network
                 paddles[i].ApplyNetworkAngle(angle);
             }
 
-            // Interpolation de la position de la balle (Lerp linéaire)
+            // Interpolation ou prédiction de la position de la balle
             if (ball != null)
             {
-                Vector2 pos = Vector2.Lerp(previous.state.ballPos, target.state.ballPos, t);
-                ball.transform.position = new Vector3(pos.x, pos.y, 0f);
+                if (predictBall)
+                {
+                    // Temps écoulé depuis la réception du dernier snapshot
+                    float elapsedSinceTarget = Time.time - target.time;
+
+                    // Extrapoler la position à partir du dernier état connu
+                    Vector2 predictedPos = target.state.ballPos + target.state.ballDir * target.state.ballSpeed * elapsedSinceTarget;
+
+                    // Lisser le rendu visuel
+                    float currentDist = Vector3.Distance(ball.transform.position, predictedPos);
+                    if (currentDist > ballSnapThreshold)
+                    {
+                        // Snap direct si l'erreur est trop grande (ex: téléportation au score)
+                        ball.transform.position = new Vector3(predictedPos.x, predictedPos.y, 0f);
+                    }
+                    else
+                    {
+                        // Interpolation douce vers la position prédite
+                        ball.transform.position = Vector3.Lerp(
+                            ball.transform.position,
+                            new Vector3(predictedPos.x, predictedPos.y, 0f),
+                            ballPredictLerpSpeed * Time.deltaTime);
+                    }
+                }
+                else
+                {
+                    // Rendu classique par interpolation linéaire entre previous et target
+                    Vector2 pos = Vector2.Lerp(previous.state.ballPos, target.state.ballPos, t);
+                    ball.transform.position = new Vector3(pos.x, pos.y, 0f);
+                }
             }
         }
 
