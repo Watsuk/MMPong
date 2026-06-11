@@ -54,13 +54,19 @@ namespace MMPong.Network
         void OnEnable()
         {
             if (client != null)
+            {
                 client.OnStateReceived += OnState;
+                client.OnGameEnded += OnGameEnded;
+            }
         }
 
         void OnDisable()
         {
             if (client != null)
+            {
                 client.OnStateReceived -= OnState;
+                client.OnGameEnded -= OnGameEnded;
+            }
         }
 
         void Update()
@@ -148,6 +154,13 @@ namespace MMPong.Network
                 audioSource.PlayOneShot(gameOverClip, volume);
 
             CacheState(s);
+        }
+
+        void OnGameEnded(int winner)
+        {
+            if (gameOverClip != null && lastPhase != GamePhase.GameOver)
+                audioSource.PlayOneShot(gameOverClip, volume);
+            lastPhase = GamePhase.GameOver;
         }
 
         void CacheState(GameState s)

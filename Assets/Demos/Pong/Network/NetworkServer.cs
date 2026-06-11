@@ -332,8 +332,14 @@ namespace MMPong.Network
             // Tick rate adaptatif
             if (state.phase != GamePhase.Playing)
             {
-                int reducedRate = state.phase == GamePhase.GameOver ? 1 : 5;
-                if (tickSeq % (tickRate / reducedRate) != 0) return;
+                // Si la partie vient de se terminer, on n'applique pas le tick rate réduit pour ce tick
+                // afin d'envoyer le snapshot de fin immédiatement et de déclencher PrepareRematch sans délai.
+                bool isTransition = state.phase == GamePhase.GameOver && !match.IsRematchWaiting;
+                if (!isTransition)
+                {
+                    int reducedRate = state.phase == GamePhase.GameOver ? 1 : 5;
+                    if (tickSeq % (tickRate / reducedRate) != 0) return;
+                }
             }
 
             byte[] bytes = Protocol.Encode(Protocol.BuildState(state));
@@ -342,6 +348,9 @@ namespace MMPong.Network
 
             if (state.phase == GamePhase.GameOver && !match.IsRematchWaiting)
             {
+                // Envoi fiable de la fin de partie
+                hub.BroadcastReliable(registry.Endpoints, Protocol.BuildEnd(state.winner));
+
                 match.PrepareRematch();
                 for (int i = 0; i < readyById.Length; i++) readyById[i] = false;
                 BroadcastLobby();
