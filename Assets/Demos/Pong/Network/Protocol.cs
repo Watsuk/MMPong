@@ -32,7 +32,6 @@ namespace MMPong.Network
         public string pseudo;
         public int team;
         public bool ready;
-        public int color;
     }
 
     /// <summary>
@@ -291,27 +290,25 @@ namespace MMPong.Network
         }
 
         // ---------- Join ----------
-        // Payload : [pseudoLen:2][pseudo:N][team:4][color:4]
+        // Payload : [pseudoLen:2][pseudo:N][team:4]
 
-        public static Message BuildJoin(string pseudo, int team, int color)
+        public static Message BuildJoin(string pseudo, int team)
         {
-            using (var ms = new MemoryStream(36))
+            using (var ms = new MemoryStream(32))
             {
                 WriteString(ms, Sanitize(pseudo));
                 WriteInt(ms, team);
-                WriteInt(ms, color);
                 return new Message { type = MessageType.Join, reliable = true, payload = ms.ToArray() };
             }
         }
 
-        public static (string pseudo, int team, int color) ParseJoin(Message m)
+        public static (string pseudo, int team) ParseJoin(Message m)
         {
             using (var ms = new MemoryStream(m.payload))
             {
                 string pseudo = ReadString(ms);
-                int team = ms.Position < ms.Length ? ReadInt(ms) : 0;   // tolérant à un ancien JOIN sans équipe
-                int color = ms.Position < ms.Length ? ReadInt(ms) : -1; // tolérant à un ancien JOIN sans couleur
-                return (pseudo, team, color);
+                int team = ms.Position < ms.Length ? ReadInt(ms) : 0; // tolérant à un ancien JOIN sans équipe
+                return (pseudo, team);
             }
         }
 
@@ -353,17 +350,16 @@ namespace MMPong.Network
         }
 
         // ---------- Lobby ----------
-        // Payload : [count:1] puis par joueur : [pseudoLen:2][pseudo:N][team:4][ready:1][color:4]
+        // Payload : [count:1] puis par joueur : [pseudoLen:2][pseudo:N][team:4][ready:1]
         // Positionnel : index = playerId, slots libres encodés avec un pseudo vide.
 
         /// <summary>
         /// État du lobby diffusé par le serveur : pour chaque slot (indexé par id), pseudo + équipe
-        /// + état prêt + couleur. Les arrays sont positionnels (longueur = MaxPlayers, "" pour les
-        /// slots libres).
+        /// + état prêt. Les arrays sont positionnels (longueur = MaxPlayers, "" pour les slots libres).
         /// </summary>
-        public static Message BuildLobby(string[] pseudos, int[] teams, bool[] ready, int[] colors)
+        public static Message BuildLobby(string[] pseudos, int[] teams, bool[] ready)
         {
-            using (var ms = new MemoryStream(128))
+            using (var ms = new MemoryStream(96))
             {
                 byte count = (byte)(pseudos != null ? pseudos.Length : 0);
                 ms.WriteByte(count);
@@ -372,7 +368,6 @@ namespace MMPong.Network
                     WriteString(ms, Sanitize(pseudos[i]));
                     WriteInt(ms, teams != null && i < teams.Length ? teams[i] : 0);
                     ms.WriteByte(ready != null && i < ready.Length && ready[i] ? (byte)1 : (byte)0);
-                    WriteInt(ms, colors != null && i < colors.Length ? colors[i] : -1);
                 }
                 return new Message { type = MessageType.Lobby, reliable = true, payload = ms.ToArray() };
             }
@@ -390,31 +385,12 @@ namespace MMPong.Network
                     pseudos[i] = ReadString(ms);
                     ReadInt(ms);        // team (ignorée ici)
                     ms.ReadByte();      // ready (ignoré ici)
-                    ReadInt(ms);        // color (ignorée ici)
                 }
                 return pseudos;
             }
         }
 
-        /// <summary>Couleurs choisies, positionnelles (index = playerId, -1 pour les slots libres).</summary>
-        public static int[] ParseLobbyColors(Message m)
-        {
-            using (var ms = new MemoryStream(m.payload))
-            {
-                byte count = (byte)ms.ReadByte();
-                int[] colors = new int[count];
-                for (int i = 0; i < count; i++)
-                {
-                    ReadString(ms);     // pseudo (ignoré ici)
-                    ReadInt(ms);        // team (ignorée ici)
-                    ms.ReadByte();      // ready (ignoré ici)
-                    colors[i] = ReadInt(ms);
-                }
-                return colors;
-            }
-        }
-
-        /// <summary>Joueurs occupés du lobby (pseudo + équipe + prêt + couleur), pour l'UI de salle d'attente.</summary>
+        /// <summary>Joueurs occupés du lobby (pseudo + équipe + prêt), pour l'UI de salle d'attente.</summary>
         public static LobbyPlayerInfo[] ParseLobbyDetailed(Message m)
         {
             using (var ms = new MemoryStream(m.payload))
@@ -426,10 +402,9 @@ namespace MMPong.Network
                     string pseudo = ReadString(ms);
                     int team = ReadInt(ms);
                     bool ready = ms.ReadByte() != 0;
-                    int color = ReadInt(ms);
                     if (string.IsNullOrEmpty(pseudo))
                         continue;
-                    list.Add(new LobbyPlayerInfo { id = i, pseudo = pseudo, team = team, ready = ready, color = color });
+                    list.Add(new LobbyPlayerInfo { id = i, pseudo = pseudo, team = team, ready = ready });
                 }
                 return list.ToArray();
             }

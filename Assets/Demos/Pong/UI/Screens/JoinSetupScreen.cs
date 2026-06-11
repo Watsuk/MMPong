@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace MMPong.UI
 {
@@ -18,8 +19,9 @@ namespace MMPong.UI
         private TextMeshProUGUI errorLabel;
         private TextMeshProUGUI statusLabel;
         private Transform listContainer;
+        private Button teamAButton;
+        private Button teamBButton;
         private int selectedTeam;
-        private int selectedColor;
 
         protected override void OnInit()
         {
@@ -33,11 +35,9 @@ namespace MMPong.UI
 
             UIFactory.CreateLabel(col, "TeamHint", "Équipe :", 20f);
             var teamRow = UIFactory.CreateRow(col, "TeamRow");
-            UIFactory.CreateButton(teamRow, "TeamABtn", "Équipe A", () => SelectTeam(0), new Vector2(150f, 44f));
-            UIFactory.CreateButton(teamRow, "TeamBBtn", "Équipe B", () => SelectTeam(1), new Vector2(150f, 44f));
+            teamAButton = UIFactory.CreateButton(teamRow, "TeamABtn", "Équipe A", () => SelectTeam(0), new Vector2(150f, 44f));
+            teamBButton = UIFactory.CreateButton(teamRow, "TeamBBtn", "Équipe B", () => SelectTeam(1), new Vector2(150f, 44f));
             teamLabel = UIFactory.CreateLabel(col, "TeamLabel", "", 20f);
-
-            UIFactory.CreateColorSelector(col, "Couleur", selectedColor, v => selectedColor = v);
 
             errorLabel = UIFactory.CreateLabel(col, "Error", "", 20f);
             errorLabel.color = new Color(1f, 0.45f, 0.45f, 1f);
@@ -91,15 +91,16 @@ namespace MMPong.UI
             errorLabel.text = "";
             Session.Pseudo = pseudo;
             Session.SelectedTeamIndex = selectedTeam;
-            Session.SelectedColorIndex = selectedColor;
 
-            Lobby.Join(Session.TargetIp, pseudo, selectedTeam, selectedColor);
+            Lobby.Join(Session.TargetIp, pseudo, selectedTeam);
             Lobby.SetReady(true);
             statusLabel.text = "Prêt — en attente du démarrage par l'hôte…";
         }
 
         private void OnPlayersChanged(IReadOnlyList<PlayerInfo> players)
         {
+            UpdateTeamAvailability(players);
+
             // La config du host (noms d'équipes) peut être arrivée entre-temps : on rafraîchit le label.
             teamLabel.text = "Équipe choisie : " + TeamName(selectedTeam);
 
@@ -108,6 +109,32 @@ namespace MMPong.UI
 
             foreach (var p in players)
                 PlayerListItem.Create(listContainer).Bind(p);
+        }
+
+        /// <summary>
+        /// Grise l'équipe pleine et bascule la sélection vers l'équipe libre. Plafond par équipe =
+        /// ceil(nbJoueurs du match / 2). Le serveur reste autoritaire : ceci n'est qu'un confort UI.
+        /// </summary>
+        private void UpdateTeamAvailability(IReadOnlyList<PlayerInfo> players)
+        {
+            int maxPlayers = Session.MatchConfig != null ? Session.MatchConfig.MaxPlayerCount : MatchConfig.MaxPlayers;
+            int cap = (maxPlayers + 1) / 2;
+
+            int countA = 0, countB = 0;
+            foreach (var p in players)
+            {
+                if (p.TeamIndex == 0) countA++;
+                else countB++;
+            }
+
+            bool aFull = countA >= cap;
+            bool bFull = countB >= cap;
+            teamAButton.interactable = !aFull;
+            teamBButton.interactable = !bFull;
+
+            // Si l'équipe choisie est pleine, basculer automatiquement vers l'équipe libre.
+            if (selectedTeam == 0 && aFull && !bFull) SelectTeam(1);
+            else if (selectedTeam == 1 && bFull && !aFull) SelectTeam(0);
         }
     }
 }

@@ -16,9 +16,8 @@ namespace MMPong.UI
         private WinConditionType winType = WinConditionType.Points;
         private int targetPoints = 5;
         private int durationSeconds = 120;
-        private int skinA = 0;
-        private int skinB = 1;
-        private int hostColor = 0; // couleur de paddle du host (son profil)
+        private int skinA = 1; // couleur équipe A (index PongPaddle.Palette : 1 = Rouge)
+        private int skinB = 0; // couleur équipe B (0 = Bleu)
 
         private TMP_InputField teamAInput;
         private TMP_InputField teamBInput;
@@ -50,15 +49,13 @@ namespace MMPong.UI
             UIFactory.CreateLabel(col, "TeamANameLabel", "Nom de l'équipe :", 18f);
             teamAInput = UIFactory.CreateInputField(col, "TeamAName", "Nom de l'équipe A");
             teamAInput.text = "Rouge";
-            UIFactory.CreateStepper(col, "Skin A", skinA, 0, 3, v => skinA = v);
+            UIFactory.CreateColorSelector(col, "Couleur équipe A", skinA, v => skinA = v);
 
             UIFactory.CreateLabel(col, "TeamBHeader", "Équipe B", 20f);
             UIFactory.CreateLabel(col, "TeamBNameLabel", "Nom de l'équipe :", 18f);
             teamBInput = UIFactory.CreateInputField(col, "TeamBName", "Nom de l'équipe B");
             teamBInput.text = "Bleu";
-            UIFactory.CreateStepper(col, "Skin B", skinB, 0, 3, v => skinB = v);
-
-            UIFactory.CreateColorSelector(col, "Votre couleur", hostColor, v => hostColor = v);
+            UIFactory.CreateColorSelector(col, "Couleur équipe B", skinB, v => skinB = v);
 
             errorLabel = UIFactory.CreateLabel(col, "Error", "", 20f);
             errorLabel.color = new Color(1f, 0.45f, 0.45f, 1f);
@@ -105,7 +102,6 @@ namespace MMPong.UI
             }
 
             Session.MatchConfig = config;
-            Session.SelectedColorIndex = hostColor;
             Lobby.Host(config);
             Manager.Show(ScreenId.HostLobby);
         }

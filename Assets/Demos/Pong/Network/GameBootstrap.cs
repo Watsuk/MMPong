@@ -89,7 +89,7 @@ namespace MMPong.Network
         /// (le match démarre au START : quota de prêts ou <see cref="NetworkServer.ForceStart"/>).
         /// Retourne le client (pour s'abonner aux events lobby) et expose le serveur via <paramref name="server"/>.
         /// </summary>
-        public NetworkClient SetupHost(string pseudo, out NetworkServer server, int colorIndex = -1)
+        public NetworkClient SetupHost(string pseudo, out NetworkServer server)
         {
             PongPaddle[] paddles = FindObjectsByType<PongPaddle>(FindObjectsSortMode.None)
                 .OrderBy(p => (int)p.Player)
@@ -114,9 +114,8 @@ namespace MMPong.Network
             // port client laissé éphémère (listenPort = 0) pour cohabiter avec d'autres clients
             // sur la même machine. Le host affiche la simulation réelle (pas de RemoteDisplay ici).
             client.pseudo = string.IsNullOrEmpty(pseudo) ? "host" : pseudo;
-            client.colorIndex = colorIndex;
             client.OnLobbyReceived += OnLobbyReceived;
-            client.OnLobbyColors += OnLobbyColorsReceived;
+            client.OnLobbyDetailed += OnLobbyDetailed;
             client.OnConfigReceived += OnConfigReceived;
             client.OnGameStarted += OnGameStarted;
             clientGo.AddComponent<ClientStateLogger>();
@@ -130,7 +129,7 @@ namespace MMPong.Network
         /// Crée le client réseau (afficheur pur) connecté à <see cref="serverIp"/>, avec l'équipe choisie.
         /// Retourne le client pour s'abonner aux events lobby.
         /// </summary>
-        public NetworkClient SetupClient(string pseudo, int teamIndex = 0, int colorIndex = -1)
+        public NetworkClient SetupClient(string pseudo, int teamIndex = 0)
         {
             // Le client n'est qu'un afficheur : balle et paddles sont pilotés par l'état serveur,
             // jamais simulés localement. On bascule la scène en RemoteDisplay (miroir du host qui,
@@ -149,9 +148,8 @@ namespace MMPong.Network
             // port client laissé éphémère (listenPort = 0) pour cohabiter sur la même machine.
             client.pseudo = string.IsNullOrEmpty(pseudo) ? "player" : pseudo;
             client.teamIndex = teamIndex;
-            client.colorIndex = colorIndex;
             client.OnLobbyReceived += OnLobbyReceived;
-            client.OnLobbyColors += OnLobbyColorsReceived;
+            client.OnLobbyDetailed += OnLobbyDetailed;
             client.OnConfigReceived += OnConfigReceived;
             client.OnGameStarted += OnGameStarted;
             clientGo.AddComponent<ClientStateApplier>();   // applique les STATE reçus à la scène
@@ -168,14 +166,52 @@ namespace MMPong.Network
             Debug.Log("[GameBootstrap] Partie démarrée (START reçu).");
         }
 
+        // Couleurs d'équipe définies par le host (index dans PongPaddle.Palette), reçues via CONFIG.
+        // -1 = pas encore reçu. Le dernier LOBBY donne l'équipe de chaque joueur.
+        int teamColorA = -1;
+        int teamColorB = -1;
+        LobbyPlayerInfo[] lastLobby;
+
         /// <summary>
-        /// Config de match reçue du serveur (noms d'équipe définis par le host) : on alimente
-        /// le HUD de score avec les vrais noms d'équipe (remplace les faux noms par défaut).
+        /// Config de match reçue du serveur (noms + couleurs d'équipe définis par le host) : on
+        /// alimente le HUD de score avec les vrais noms et on retient les couleurs d'équipe pour
+        /// colorer les paddles.
         /// </summary>
         void OnConfigReceived(MatchSettings settings)
         {
             PongScore score = FindFirstObjectByType<PongScore>();
             if (score != null) score.SetTeamNames(settings.teamAName, settings.teamBName);
+
+            teamColorA = settings.teamASkin;
+            teamColorB = settings.teamBSkin;
+            ApplyTeamColors();
+        }
+
+        /// <summary>État lobby détaillé reçu : retient l'équipe de chaque joueur et recolore les paddles.</summary>
+        void OnLobbyDetailed(LobbyPlayerInfo[] players)
+        {
+            lastLobby = players;
+            ApplyTeamColors();
+        }
+
+        /// <summary>
+        /// Colore chaque paddle selon la couleur de SON équipe (choisie par le host). Nécessite le
+        /// CONFIG (couleurs d'équipe) et le LOBBY (équipe de chaque joueur) — appelée à réception
+        /// de l'un comme de l'autre. Paddles ordonnés par <c>Player</c>, indexés par id de joueur.
+        /// </summary>
+        void ApplyTeamColors()
+        {
+            if (lastLobby == null || teamColorA < 0 || teamColorB < 0) return;
+
+            PongPaddle[] paddles = FindObjectsByType<PongPaddle>(FindObjectsSortMode.None)
+                .OrderBy(p => (int)p.Player)
+                .ToArray();
+
+            foreach (var p in lastLobby)
+            {
+                if (p.id >= 0 && p.id < paddles.Length && paddles[p.id] != null)
+                    paddles[p.id].SetColorId(p.team == 0 ? teamColorA : teamColorB);
+            }
         }
 
         void OnLobbyReceived(string[] pseudos)
@@ -200,21 +236,5 @@ namespace MMPong.Network
             }
         }
 
-        /// <summary>
-        /// Couleurs choisies par les joueurs (positionnelles, index = playerId) : on colore chaque
-        /// paddle selon le choix de son joueur. -1 = couleur d'équipe par défaut (paddle inchangé).
-        /// </summary>
-        void OnLobbyColorsReceived(int[] colors)
-        {
-            PongPaddle[] paddles = FindObjectsByType<PongPaddle>(FindObjectsSortMode.None)
-                .OrderBy(p => (int)p.Player)
-                .ToArray();
-
-            for (int i = 0; i < paddles.Length && i < colors.Length; i++)
-            {
-                if (paddles[i] != null && colors[i] >= 0)
-                    paddles[i].SetColorId(colors[i]);
-            }
-        }
     }
 }

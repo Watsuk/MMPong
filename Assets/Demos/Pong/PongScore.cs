@@ -85,6 +85,6 @@ public class PongScore : MonoBehaviour
     {
         return string.IsNullOrWhiteSpace(players)
             ? $"{teamName}\nScore : {score}"
-            : $"{teamName}\n{players}\nScore : {score}";
+            : $"{teamName}\nJoueurs : {players}\nScore : {score}";
     }
 }

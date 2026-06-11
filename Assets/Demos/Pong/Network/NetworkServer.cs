@@ -32,7 +32,6 @@ namespace MMPong.Network
         MatchSettings settings;
         readonly int[] teamById = new int[ClientRegistry.MaxPlayers];
         readonly bool[] readyById = new bool[ClientRegistry.MaxPlayers];
-        readonly int[] colorById = new int[ClientRegistry.MaxPlayers];
 
         /// <summary>
         /// Définit la configuration du match (appelée par le lobby host avant <see cref="Start"/>).
@@ -51,7 +50,6 @@ namespace MMPong.Network
             hub = new ReliableHub((bytes, ep) => transport.Send(bytes, ep));
             match = new MatchCoordinator(expectedPlayers);
             pendingInput = new float[ClientRegistry.MaxPlayers];
-            for (int i = 0; i < colorById.Length; i++) colorById[i] = -1; // -1 = couleur d'équipe par défaut
 
             // Valeurs par défaut si aucun Configure() (compat : démarrage hors hub).
             if (settings.maxPlayers == 0)
@@ -82,27 +80,62 @@ namespace MMPong.Network
 
         void HandleJoin(Message m, IPEndPoint from)
         {
-            var (pseudo, team, color) = Protocol.ParseJoin(m);
-            if (!registry.TryFindId(from, out int id)) id = registry.Register(from, pseudo);
-            if (id < 0)
-            {
-                Debug.LogWarning("[NetworkServer] Partie pleine, JOIN refusé.");
-                return;
-            }
+            var (pseudo, team) = Protocol.ParseJoin(m);
 
-            if (id >= 0 && id < teamById.Length) teamById[id] = team;
-            if (id >= 0 && id < colorById.Length) colorById[id] = color;
+            // Nouveau client : refuser si le match est complet, sinon enregistrer + répartir l'équipe.
+            // Re-JOIN (endpoint déjà connu) : idempotent, on conserve l'équipe déjà attribuée.
+            bool isNew = !registry.TryFindId(from, out int id);
+            if (isNew)
+            {
+                if (registry.Count >= expectedPlayers)
+                {
+                    Debug.LogWarning($"[NetworkServer] Match complet ({expectedPlayers} joueurs), JOIN refusé.");
+                    return;
+                }
+                id = registry.Register(from, pseudo);
+                if (id < 0)
+                {
+                    Debug.LogWarning("[NetworkServer] Partie pleine, JOIN refusé.");
+                    return;
+                }
+                if (id < teamById.Length) teamById[id] = AssignTeam(id, team);
+            }
 
             hub.SendReliable(from, Protocol.BuildWelcome(id));
             hub.SendReliable(from, Protocol.BuildConfig(settings)); // le client reçoit la config du salon
-            Debug.Log($"[NetworkServer] client joined id={id} pseudo={pseudo} team={team} color={color} from {from}");
+            Debug.Log($"[NetworkServer] client joined id={id} pseudo={pseudo} team={teamById[id]} from {from}");
 
             BroadcastLobby();
         }
 
+        /// <summary>
+        /// Répartit un nouveau joueur entre les deux équipes : on honore l'équipe demandée si elle a
+        /// de la place, sinon on le bascule dans l'équipe libre. Plafond par équipe = ceil(expectedPlayers/2)
+        /// (2 joueurs → 1 par équipe, 4 → 2, etc.).
+        /// </summary>
+        int AssignTeam(int newId, int requested)
+        {
+            requested = requested == 1 ? 1 : 0;
+            int cap = (expectedPlayers + 1) / 2;
+
+            int countA = 0, countB = 0;
+            foreach (int otherId in registry.Ids)
+            {
+                if (otherId == newId) continue;
+                if (teamById[otherId] == 0) countA++; else countB++;
+            }
+
+            int reqCount = requested == 0 ? countA : countB;
+            if (reqCount < cap) return requested;
+
+            int other = requested == 0 ? 1 : 0;
+            int otherCount = other == 0 ? countA : countB;
+            return otherCount < cap ? other : requested; // les deux pleins : repli (ne devrait pas arriver)
+        }
+
         void BroadcastLobby()
             => hub.BroadcastReliable(registry.Endpoints,
-                Protocol.BuildLobby(registry.Pseudos(), teamById, readyById, colorById));
+                Protocol.BuildLobby(registry.Pseudos(), teamById, readyById));
 
         /// <summary>Démarrage autoritaire forcé par le host (bouton « Démarrer »).</summary>
         public void ForceStart()
