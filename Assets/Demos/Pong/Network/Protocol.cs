@@ -67,12 +67,11 @@ namespace MMPong.Network
         const char FieldSep = '|';
         const char ListSep = ',';
 
-        // ========== En-tête fixe : 6 octets ==========
-        // [0]     MessageType (1 octet)
-        // [1..4]  seq         (4 octets, uint LE)
-        // [5]     reliable    (1 octet, 0 ou 1)
+        // ========== En-tête fixe : 3 octets ==========
+        // [0]     type:4 | reliable:1 | reserved:3 (1 octet)
+        // [1..2]  seq         (2 octets, ushort LE)
 
-        const int HeaderSize = 6;
+        const int HeaderSize = 3;
 
         // ---------- Enveloppe ----------
 
@@ -83,12 +82,12 @@ namespace MMPong.Network
             byte[] buf = new byte[HeaderSize + payloadLen];
 
             // En-tête
-            buf[0] = (byte)m.type;
-            buf[1] = (byte)(m.seq);
-            buf[2] = (byte)(m.seq >> 8);
-            buf[3] = (byte)(m.seq >> 16);
-            buf[4] = (byte)(m.seq >> 24);
-            buf[5] = m.reliable ? (byte)1 : (byte)0;
+            byte typeAndReliable = (byte)((byte)m.type & 0x0F);
+            if (m.reliable) typeAndReliable |= 0x10;
+            buf[0] = typeAndReliable;
+            ushort shortSeq = (ushort)m.seq;
+            buf[1] = (byte)(shortSeq);
+            buf[2] = (byte)(shortSeq >> 8);
 
             // Payload
             if (payloadLen > 0)
@@ -105,9 +104,9 @@ namespace MMPong.Network
 
             var m = new Message
             {
-                type = (MessageType)data[0],
-                seq = (uint)(data[1] | (data[2] << 8) | (data[3] << 16) | (data[4] << 24)),
-                reliable = data[5] != 0
+                type = (MessageType)(data[0] & 0x0F),
+                reliable = (data[0] & 0x10) != 0,
+                seq = (uint)(data[1] | (data[2] << 8))
             };
 
             int payloadLen = data.Length - HeaderSize;
@@ -184,16 +183,79 @@ namespace MMPong.Network
 
         // ========== Helpers par message ==========
 
+        static void WriteShort(MemoryStream ms, short v)
+        {
+            ms.WriteByte((byte)v);
+            ms.WriteByte((byte)(v >> 8));
+        }
+
+        static short ReadShort(MemoryStream ms)
+        {
+            int lo = ms.ReadByte();
+            int hi = ms.ReadByte();
+            return (short)(lo | (hi << 8));
+        }
+
+        // Angle [0, 360) -> ushort [0, 65535]
+        static ushort QuantizeAngle(float deg)
+        {
+            float n = Mathf.Repeat(deg, 360f);
+            return (ushort)(n * 65535f / 360f);
+        }
+
+        static float DequantizeAngle(ushort q)
+        {
+            return (q * 360f) / 65535f;
+        }
+
+        // Pos -> short (x1000, clamp +/-32767)
+        static short QuantizePos(float v)
+        {
+            return (short)Mathf.Clamp(v * 1000f, -32768f, 32767f);
+        }
+
+        static float DequantizePos(short q)
+        {
+            return q / 1000f;
+        }
+
+        // Speed -> ushort (x100)
+        static ushort QuantizeSpeed(float v)
+        {
+            return (ushort)Mathf.Clamp(v * 100f, 0f, 65535f);
+        }
+
+        static float DequantizeSpeed(ushort q)
+        {
+            return q / 100f;
+        }
+
+        // Dir (Vector2) -> 1 byte (angle 0-255)
+        static byte QuantizeDir(Vector2 dir)
+        {
+            float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
+            float n = Mathf.Repeat(angle, 360f);
+            return (byte)(n * 255f / 360f);
+        }
+
+        static Vector2 DequantizeDir(byte q)
+        {
+            float angle = (q * 360f) / 255f;
+            float rad = angle * Mathf.Deg2Rad;
+            return new Vector2(Mathf.Cos(rad), Mathf.Sin(rad));
+        }
+
         // ---------- Input ----------
-        // Payload : [playerId:4][dir:4] = 8 octets
+        // Payload : [playerId:1][dir:1] = 2 octets
 
         /// <summary>Input d'un joueur : direction verticale (-1, 0, 1).</summary>
         public static Message BuildInput(int playerId, float dir)
         {
-            using (var ms = new MemoryStream(8))
+            using (var ms = new MemoryStream(2))
             {
-                WriteInt(ms, playerId);
-                WriteFloat(ms, dir);
+                ms.WriteByte((byte)playerId);
+                sbyte d = (sbyte)(dir > 0.5f ? 1 : (dir < -0.5f ? -1 : 0));
+                ms.WriteByte((byte)d);
                 return new Message { type = MessageType.Input, reliable = false, payload = ms.ToArray() };
             }
         }
@@ -202,16 +264,17 @@ namespace MMPong.Network
         {
             using (var ms = new MemoryStream(m.payload))
             {
-                int id = ReadInt(ms);
-                float dir = ReadFloat(ms);
+                int id = ms.ReadByte();
+                sbyte d = (sbyte)ms.ReadByte();
+                float dir = d;
                 return (id, dir);
             }
         }
 
         // ---------- State ----------
-        // Payload : [ballPos.x:4][ballPos.y:4][ballOwner:4][phase:1][winner:4]
-        //           [paddleCount:1][paddleAngle0:4]...[scoreCount:1][score0:4]...
-        //           [hasBonus:1][bonusCircleIndex:4][bonusAngle:4][bonusWinner:4]
+        // Payload : [ballPos.x:2][ballPos.y:2][ballOwner:1][phase:1][winner:1]
+        //           [paddleCount:1][paddleAngle0:2]...[scoreCount:1][score0:1]...
+        //           [hasBonus:1][bonusCircleIndex:1][bonusAngle:2][bonusWinner:1]
 
         /// <summary>Snapshot d'état (le <c>seq</c> du message reprend celui du GameState).</summary>
         public static Message BuildState(GameState s)
@@ -219,36 +282,35 @@ namespace MMPong.Network
             using (var ms = new MemoryStream(64))
             {
                 // Balle
-                WriteFloat(ms, s.ballPos.x);
-                WriteFloat(ms, s.ballPos.y);
-                WriteInt(ms, s.ballOwner);
+                WriteShort(ms, QuantizePos(s.ballPos.x));
+                WriteShort(ms, QuantizePos(s.ballPos.y));
+                ms.WriteByte((byte)s.ballOwner);
 
                 // Phase & winner
                 ms.WriteByte((byte)s.phase);
-                WriteInt(ms, s.winner);
+                ms.WriteByte((byte)s.winner);
 
                 // Paddles (tableau variable précédé de son compteur)
                 byte paddleCount = (byte)(s.paddleAngle != null ? s.paddleAngle.Length : 0);
                 ms.WriteByte(paddleCount);
                 for (int i = 0; i < paddleCount; i++)
-                    WriteFloat(ms, s.paddleAngle[i]);
+                    WriteUShort(ms, QuantizeAngle(s.paddleAngle[i]));
 
                 // Scores (tableau variable précédé de son compteur)
                 byte scoreCount = (byte)(s.scores != null ? s.scores.Length : 0);
                 ms.WriteByte(scoreCount);
                 for (int i = 0; i < scoreCount; i++)
-                    WriteInt(ms, s.scores[i]);
+                    ms.WriteByte((byte)s.scores[i]);
 
                 // Bonus
                 ms.WriteByte(s.hasBonus ? (byte)1 : (byte)0);
-                WriteInt(ms, s.bonusCircleIndex);
-                WriteFloat(ms, s.bonusAngle);
-                WriteInt(ms, s.bonusWinner);
+                ms.WriteByte((byte)s.bonusCircleIndex);
+                WriteUShort(ms, QuantizeAngle(s.bonusAngle));
+                ms.WriteByte((byte)s.bonusWinner);
 
                 // Balle direction & vitesse
-                WriteFloat(ms, s.ballDir.x);
-                WriteFloat(ms, s.ballDir.y);
-                WriteFloat(ms, s.ballSpeed);
+                ms.WriteByte(QuantizeDir(s.ballDir));
+                WriteUShort(ms, QuantizeSpeed(s.ballSpeed));
 
                 return new Message { type = MessageType.State, seq = s.seq, reliable = false, payload = ms.ToArray() };
             }
@@ -260,30 +322,30 @@ namespace MMPong.Network
             {
                 var s = new GameState { seq = m.seq };
 
-                s.ballPos = new Vector2(ReadFloat(ms), ReadFloat(ms));
-                s.ballOwner = ReadInt(ms);
+                s.ballPos = new Vector2(DequantizePos(ReadShort(ms)), DequantizePos(ReadShort(ms)));
+                s.ballOwner = (sbyte)ms.ReadByte();
 
                 s.phase = (GamePhase)ms.ReadByte();
-                s.winner = ReadInt(ms);
+                s.winner = (sbyte)ms.ReadByte();
 
                 byte paddleCount = (byte)ms.ReadByte();
                 s.paddleAngle = new float[paddleCount];
                 for (int i = 0; i < paddleCount; i++)
-                    s.paddleAngle[i] = ReadFloat(ms);
+                    s.paddleAngle[i] = DequantizeAngle(ReadUShort(ms));
 
                 byte scoreCount = (byte)ms.ReadByte();
                 s.scores = new int[scoreCount];
                 for (int i = 0; i < scoreCount; i++)
-                    s.scores[i] = ReadInt(ms);
+                    s.scores[i] = ms.ReadByte();
 
                 s.hasBonus = ms.ReadByte() != 0;
-                s.bonusCircleIndex = ReadInt(ms);
-                s.bonusAngle = ReadFloat(ms);
-                s.bonusWinner = ReadInt(ms);
+                s.bonusCircleIndex = ms.ReadByte();
+                s.bonusAngle = DequantizeAngle(ReadUShort(ms));
+                s.bonusWinner = (sbyte)ms.ReadByte();
 
                 // Balle direction & vitesse
-                s.ballDir = new Vector2(ReadFloat(ms), ReadFloat(ms));
-                s.ballSpeed = ReadFloat(ms);
+                s.ballDir = DequantizeDir((byte)ms.ReadByte());
+                s.ballSpeed = DequantizeSpeed(ReadUShort(ms));
 
                 return s;
             }
