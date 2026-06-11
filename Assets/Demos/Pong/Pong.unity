@@ -1996,6 +1996,7 @@ MonoBehaviour:
   ExternalDirection: 0
   RemoteDisplay: 0
   ColorId: -1
+  TeamIndex: -1
 --- !u!54 &807978589
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -2157,6 +2158,7 @@ MonoBehaviour:
   ExternalDirection: 0
   RemoteDisplay: 0
   ColorId: -1
+  TeamIndex: -1
 --- !u!54 &814606658
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -2416,6 +2418,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::MMPong.UI.HubBootstrap
   sortingOrder: 100
   useMock: 0
+  menuFont: {fileID: 0}
 --- !u!1 &1015289706
 GameObject:
   m_ObjectHideFlags: 0
