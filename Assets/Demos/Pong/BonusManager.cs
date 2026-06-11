@@ -33,6 +33,18 @@ namespace MMPong
         private GameObject bonusVisual;
         private AudioSource audioSource;
 
+        // ========== Animation sprite (Poisonous Smoke) ==========
+        /// <summary>Frames PNG chargées depuis Resources/BonusSmoke/ au démarrage.</summary>
+        private Texture2D[] smokeFrames;
+        /// <summary>Index de la frame courante dans le cycle d'animation.</summary>
+        private int currentFrame;
+        /// <summary>Timer interne pour cadencer le défilement des frames.</summary>
+        private float frameTimer;
+        /// <summary>Vitesse de l'animation en frames par seconde.</summary>
+        private const float FramesPerSecond = 12f;
+        /// <summary>Renderer du Quad portant le sprite (pour changer la texture).</summary>
+        private Renderer bonusRenderer;
+
         void Awake()
         {
             if (Instance != null && Instance != this) Destroy(gameObject);
@@ -52,6 +64,9 @@ namespace MMPong
                 bonusSpawnClip = GenerateBeep(660f, 0.12f, 0.3f);   // bip aigu et court
             if (bonusPickupClip == null)
                 bonusPickupClip = GeneratePowerUp(0.25f, 0.4f);      // son ascendant de power-up
+
+            // Charge les frames du sprite animé depuis Resources/BonusSmoke/
+            LoadSmokeFrames();
         }
 
         /// <summary>Génère un bip sinusoïdal simple.</summary>
@@ -87,6 +102,31 @@ namespace MMPong
             AudioClip c = AudioClip.Create("bonus_powerup", n, 1, sr, false);
             c.SetData(s, 0);
             return c;
+        }
+
+        /// <summary>
+        /// Charge les 12 frames du sprite « Poisonous Smoke » depuis le dossier
+        /// Assets/Resources/BonusSmoke/ (smoke_01..smoke_12). Les fichiers doivent
+        /// être des PNG importés comme Texture2D dans Unity (paramètre par défaut).
+        /// </summary>
+        void LoadSmokeFrames()
+        {
+            var frames = new System.Collections.Generic.List<Texture2D>();
+            for (int i = 1; i <= 12; i++)
+            {
+                string path = $"BonusSmoke/smoke_{i:D2}";
+                Texture2D tex = Resources.Load<Texture2D>(path);
+                if (tex != null)
+                    frames.Add(tex);
+                else
+                    Debug.LogWarning($"[BonusManager] Frame manquante : Resources/{path}");
+            }
+
+            smokeFrames = frames.ToArray();
+            if (smokeFrames.Length > 0)
+                Debug.Log($"🟢 [BonusManager] {smokeFrames.Length} frames smoke chargées.");
+            else
+                Debug.LogWarning("[BonusManager] Aucune frame smoke trouvée ! Le bonus sera invisible.");
         }
 
         // Called by ClientStateApplier (Client)
@@ -178,17 +218,35 @@ namespace MMPong
             AnimateVisuals();
         }
 
+        /// <summary>
+        /// Animation du sprite : défile les frames à FramesPerSecond et fait tourner
+        /// le Quad face à la caméra (billboard) pour qu'il soit toujours visible.
+        /// </summary>
         void AnimateVisuals()
         {
-            if (HasBonus && bonusVisual != null)
-            {
-                // Rotation continue sur tous les axes pour un effet 3D
-                bonusVisual.transform.Rotate(new Vector3(45f, 90f, 30f) * Time.deltaTime);
+            if (!HasBonus || bonusVisual == null || smokeFrames == null || smokeFrames.Length == 0)
+                return;
 
-                // Pulsation sinusoïdale (oscillation douce de la taille)
-                float pulse = 1.5f + Mathf.Sin(Time.time * 6f) * 0.3f;
-                bonusVisual.transform.localScale = new Vector3(pulse, pulse, pulse);
+            // Défilement des frames
+            frameTimer += Time.deltaTime;
+            float frameDuration = 1f / FramesPerSecond;
+            if (frameTimer >= frameDuration)
+            {
+                frameTimer -= frameDuration;
+                currentFrame = (currentFrame + 1) % smokeFrames.Length;
+                if (bonusRenderer != null)
+                    bonusRenderer.material.mainTexture = smokeFrames[currentFrame];
             }
+
+            // Billboard : le Quad fait toujours face à la caméra
+            if (Camera.main != null)
+            {
+                bonusVisual.transform.rotation = Camera.main.transform.rotation;
+            }
+
+            // Pulsation douce de la taille
+            float pulse = 3f + Mathf.Sin(Time.time * 3f) * 0.3f;
+            bonusVisual.transform.localScale = new Vector3(pulse, pulse, pulse);
         }
 
         /// <summary>
@@ -283,16 +341,28 @@ namespace MMPong
             {
                 if (bonusVisual == null)
                 {
-                    bonusVisual = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                    bonusVisual.name = "BonusSphere";
-                    Destroy(bonusVisual.GetComponent<Collider>()); // No physical collision
-                    bonusVisual.transform.localScale = new Vector3(1.5f, 1.5f, 1.5f);
-                    Renderer r = bonusVisual.GetComponent<Renderer>();
-                    if (r != null)
+                    // Crée un Quad (plan 2D) au lieu d'une sphère 3D
+                    bonusVisual = GameObject.CreatePrimitive(PrimitiveType.Quad);
+                    bonusVisual.name = "BonusSmoke";
+                    Destroy(bonusVisual.GetComponent<Collider>()); // pas de collision physique
+                    bonusVisual.transform.localScale = new Vector3(3f, 3f, 3f);
+
+                    // Matériau transparent (sprites avec alpha)
+                    bonusRenderer = bonusVisual.GetComponent<Renderer>();
+                    if (bonusRenderer != null)
                     {
-                        // Utilise le matériau par défaut et le colorie en vert.
-                        // Évite Shader.Find("Unlit/Color") qui échoue sous URP/HDRP.
-                        r.material.color = Color.green;
+                        // Utilise un shader transparent compatible avec tous les pipelines
+                        Material mat = new Material(Shader.Find("Sprites/Default"));
+                        mat.color = Color.white;
+                        bonusRenderer.material = mat;
+
+                        // Applique la première frame si disponible
+                        if (smokeFrames != null && smokeFrames.Length > 0)
+                        {
+                            currentFrame = 0;
+                            frameTimer = 0f;
+                            mat.mainTexture = smokeFrames[0];
+                        }
                     }
                 }
                 bonusVisual.SetActive(true);
