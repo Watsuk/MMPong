@@ -21,14 +21,14 @@ namespace MMPong.UI
 
             var item = go.AddComponent<PlayerListItem>();
             item.label = go.AddComponent<TextMeshProUGUI>();
-            item.label.fontSize = 24f;
+            item.label.fontSize = 20f;
             item.label.alignment = TextAlignmentOptions.Left;
             item.label.color = Color.white;
             item.label.raycastTarget = false;
 
             var le = go.AddComponent<LayoutElement>();
-            le.preferredWidth = 520f;
-            le.preferredHeight = 36f;
+            le.preferredWidth = 640f;
+            le.preferredHeight = 32f;
             return item;
         }
 

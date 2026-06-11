@@ -12,11 +12,9 @@ namespace MMPong.Network
 
         void Start()
         {
-            // Input
             var (id, dir) = Protocol.ParseInput(Roundtrip(Protocol.BuildInput(1, -1f)));
             Check("Input", id == 1 && Mathf.Approximately(dir, -1f));
 
-            // State (jeu circulaire, 2 joueurs)
             var g = new GameState
             {
                 seq = 184,

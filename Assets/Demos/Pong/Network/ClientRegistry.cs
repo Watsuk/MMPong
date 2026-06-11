@@ -48,6 +48,9 @@ namespace MMPong.Network
         /// <summary>Endpoints de tous les clients enregistrés (pour la diffusion).</summary>
         public IEnumerable<IPEndPoint> Endpoints => endpoints.Values;
 
+        /// <summary>Identifiants des clients enregistrés (pour compter les membres par équipe).</summary>
+        public IEnumerable<int> Ids => endpoints.Keys;
+
         /// <summary>Pseudos indexés par identifiant (longueur MaxPlayers, "" pour les slots libres).</summary>
         public string[] Pseudos()
         {

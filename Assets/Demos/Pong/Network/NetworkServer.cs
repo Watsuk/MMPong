@@ -81,11 +81,24 @@ namespace MMPong.Network
         void HandleJoin(Message m, IPEndPoint from)
         {
             var (pseudo, team) = Protocol.ParseJoin(m);
-            if (!registry.TryFindId(from, out int id)) id = registry.Register(from, pseudo);
-            if (id < 0)
+
+            // Nouveau client : refuser si le match est complet, sinon enregistrer + répartir l'équipe.
+            // Re-JOIN (endpoint déjà connu) : idempotent, on conserve l'équipe déjà attribuée.
+            bool isNew = !registry.TryFindId(from, out int id);
+            if (isNew)
             {
-                Debug.LogWarning("[NetworkServer] Partie pleine, JOIN refusé.");
-                return;
+                if (registry.Count >= expectedPlayers)
+                {
+                    Debug.LogWarning($"[NetworkServer] Match complet ({expectedPlayers} joueurs), JOIN refusé.");
+                    return;
+                }
+                id = registry.Register(from, pseudo);
+                if (id < 0)
+                {
+                    Debug.LogWarning("[NetworkServer] Partie pleine, JOIN refusé.");
+                    return;
+                }
+                if (id < teamById.Length) teamById[id] = AssignTeam(id, team);
             }
 
             if (id >= 0 && id < teamById.Length)
@@ -100,9 +113,34 @@ namespace MMPong.Network
 
             hub.SendReliable(from, Protocol.BuildWelcome(id));
             hub.SendReliable(from, Protocol.BuildConfig(settings)); // le client reçoit la config du salon
-            Debug.Log($"[NetworkServer] client joined id={id} pseudo={pseudo} team={team} from {from}");
+            Debug.Log($"[NetworkServer] client joined id={id} pseudo={pseudo} team={teamById[id]} from {from}");
 
             BroadcastLobby();
+        }
+
+        /// <summary>
+        /// Répartit un nouveau joueur entre les deux équipes : on honore l'équipe demandée si elle a
+        /// de la place, sinon on le bascule dans l'équipe libre. Plafond par équipe = ceil(expectedPlayers/2)
+        /// (2 joueurs → 1 par équipe, 4 → 2, etc.).
+        /// </summary>
+        int AssignTeam(int newId, int requested)
+        {
+            requested = requested == 1 ? 1 : 0;
+            int cap = (expectedPlayers + 1) / 2;
+
+            int countA = 0, countB = 0;
+            foreach (int otherId in registry.Ids)
+            {
+                if (otherId == newId) continue;
+                if (teamById[otherId] == 0) countA++; else countB++;
+            }
+
+            int reqCount = requested == 0 ? countA : countB;
+            if (reqCount < cap) return requested;
+
+            int other = requested == 0 ? 1 : 0;
+            int otherCount = other == 0 ? countA : countB;
+            return otherCount < cap ? other : requested; // les deux pleins : repli (ne devrait pas arriver)
         }
 
         void BroadcastLobby()

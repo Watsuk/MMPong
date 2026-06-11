@@ -80,7 +80,7 @@ namespace MMPong.UI
         /// <summary>Titre de l'écran.</summary>
         public static TextMeshProUGUI CreateTitle(Transform parent, string text)
         {
-            return CreateLabel(parent, "Title", text, 48f, new Vector2(720f, 80f));
+            return CreateLabel(parent, "Title", text, 38f, new Vector2(760f, 64f));
         }
 
         /// <summary>Texte simple (label, message d'erreur, info).</summary>
@@ -149,7 +149,7 @@ namespace MMPong.UI
         public static TMP_InputField CreateInputField(Transform parent, string name, string placeholder,
             Vector2 size = default)
         {
-            if (size == Vector2.zero) size = new Vector2(360f, 50f);
+            if (size == Vector2.zero) size = new Vector2(480f, 48f);
 
             var go = NewUI(name, parent);
             var rect = go.GetComponent<RectTransform>();
@@ -171,14 +171,14 @@ namespace MMPong.UI
             var placeholderTmp = NewUI("Placeholder", areaGo.transform).AddComponent<TextMeshProUGUI>();
             Stretch(placeholderTmp.GetComponent<RectTransform>());
             placeholderTmp.text = placeholder;
-            placeholderTmp.fontSize = 24f;
+            placeholderTmp.fontSize = 20f;
             placeholderTmp.fontStyle = FontStyles.Italic;
             placeholderTmp.color = new Color(0.2f, 0.2f, 0.2f, 0.6f);
             placeholderTmp.alignment = TextAlignmentOptions.Left;
 
             var textTmp = NewUI("Text", areaGo.transform).AddComponent<TextMeshProUGUI>();
             Stretch(textTmp.GetComponent<RectTransform>());
-            textTmp.fontSize = 24f;
+            textTmp.fontSize = 20f;
             textTmp.color = Color.black;
             textTmp.alignment = TextAlignmentOptions.Left;
 
@@ -217,6 +217,44 @@ namespace MMPong.UI
             plus.onClick.AddListener(() => Apply(+1));
             onChanged?.Invoke(value);
             return row;
+        }
+
+        /// <summary>
+        /// Sélecteur de couleur : une rangée de pastilles cliquables (couleurs de
+        /// <see cref="PongPaddle.Palette"/>). Le nom de la couleur choisie est affiché à côté du
+        /// libellé. Appelle <paramref name="onChanged"/> avec l'index sélectionné.
+        /// </summary>
+        public static void CreateColorSelector(Transform parent, string label, int initial, Action<int> onChanged)
+        {
+            int selected = Mathf.Clamp(initial, 0, PongPaddle.Palette.Length - 1);
+
+            var header = CreateRow(parent, label + "Header");
+            CreateLabel(header, "Label", label, 22f, new Vector2(150f, 40f));
+            var valueLabel = CreateLabel(header, "Value", PongPaddle.PaletteNames[selected], 20f,
+                new Vector2(150f, 40f));
+
+            var row = CreateRow(parent, label + "Swatches", 8f);
+            for (int i = 0; i < PongPaddle.Palette.Length; i++)
+            {
+                int idx = i;
+                var btn = CreateButton(row, "Color" + i, "", () =>
+                {
+                    selected = idx;
+                    valueLabel.text = PongPaddle.PaletteNames[idx];
+                    onChanged?.Invoke(idx);
+                }, new Vector2(40f, 40f));
+
+                // Teinte le bouton à la couleur de la palette (normal + survol).
+                var img = btn.GetComponent<Image>();
+                img.color = PongPaddle.Palette[idx];
+                var colors = btn.colors;
+                colors.normalColor = PongPaddle.Palette[idx];
+                colors.highlightedColor = Color.Lerp(PongPaddle.Palette[idx], Color.white, 0.3f);
+                colors.pressedColor = Color.Lerp(PongPaddle.Palette[idx], Color.black, 0.2f);
+                btn.colors = colors;
+            }
+
+            onChanged?.Invoke(selected);
         }
 
         // ── Helpers internes ─────────────────────────────────────────────────────
