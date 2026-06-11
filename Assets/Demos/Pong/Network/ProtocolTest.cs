@@ -12,11 +12,9 @@ namespace MMPong.Network
 
         void Start()
         {
-            // Input
             var (id, dir) = Protocol.ParseInput(Roundtrip(Protocol.BuildInput(1, -1f)));
             Check("Input", id == 1 && Mathf.Approximately(dir, -1f));
 
-            // State (jeu circulaire, 2 joueurs)
             var g = new GameState
             {
                 seq = 184,
@@ -46,21 +44,24 @@ namespace MMPong.Network
                 && Mathf.Approximately(g2.ballDir.y, -0.707f)
                 && Mathf.Approximately(g2.ballSpeed, 5.5f));
 
-            // Join + nettoyage des séparateurs + équipe
-            var join = Protocol.ParseJoin(Roundtrip(Protocol.BuildJoin("ali|ce,bob", 1)));
-            Check("Join (sanitize + team)", join.pseudo == "alicebob" && join.team == 1);
+            // Join + nettoyage des séparateurs + équipe + couleur
+            var join = Protocol.ParseJoin(Roundtrip(Protocol.BuildJoin("ali|ce,bob", 1, 3)));
+            Check("Join (sanitize + team + color)", join.pseudo == "alicebob" && join.team == 1 && join.color == 3);
 
-            // Lobby (pseudos + équipes + prêt positionnels)
+            // Lobby (pseudos + équipes + prêt + couleurs positionnels)
             var lobbyMsg = Roundtrip(Protocol.BuildLobby(
                 new[] { "alice", "bob", "charlie", "" },
                 new[] { 0, 1, 0, 0 },
-                new[] { true, false, true, false }));
+                new[] { true, false, true, false },
+                new[] { 2, 4, 5, -1 }));
             var lobby = Protocol.ParseLobby(lobbyMsg);
             Check("Lobby (pseudos)", lobby.Length == 4 && lobby[2] == "charlie");
+            var lobbyColors = Protocol.ParseLobbyColors(lobbyMsg);
+            Check("Lobby (couleurs)", lobbyColors.Length == 4 && lobbyColors[1] == 4 && lobbyColors[3] == -1);
             var lobbyDetail = Protocol.ParseLobbyDetailed(lobbyMsg);
             Check("Lobby (détaillé)", lobbyDetail.Length == 3
                 && lobbyDetail[2].pseudo == "charlie" && lobbyDetail[2].team == 0 && lobbyDetail[2].ready
-                && lobbyDetail[1].team == 1 && !lobbyDetail[1].ready);
+                && lobbyDetail[2].color == 5 && lobbyDetail[1].team == 1 && !lobbyDetail[1].ready);
 
             // Config (round-trip)
             var cfg = Protocol.ParseConfig(Roundtrip(Protocol.BuildConfig(new MatchSettings
@@ -93,7 +94,7 @@ namespace MMPong.Network
             // ReliableChannel — émission : assigne un seq, ré-émet sans ACK, stoppe sur ACK
             var sent = new System.Collections.Generic.List<byte[]>();
             var chan = new ReliableChannel(b => sent.Add(b));
-            chan.SendReliable(Protocol.BuildJoin("alice", 0));
+            chan.SendReliable(Protocol.BuildJoin("alice", 0, -1));
             Check("Reliable émet une fois", sent.Count == 1);
             uint sentSeq = Protocol.Decode(sent[0]).seq;
             Check("Reliable assigne un seq", sentSeq >= 1);

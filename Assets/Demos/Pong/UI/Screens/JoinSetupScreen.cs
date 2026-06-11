@@ -19,6 +19,7 @@ namespace MMPong.UI
         private TextMeshProUGUI statusLabel;
         private Transform listContainer;
         private int selectedTeam;
+        private int selectedColor;
 
         protected override void OnInit()
         {
@@ -27,21 +28,24 @@ namespace MMPong.UI
 
             UIFactory.CreateTitle(col, "Rejoindre le salon");
 
-            UIFactory.CreateLabel(col, "PseudoHint", "Pseudo", 22f);
+            UIFactory.CreateLabel(col, "PseudoHint", "Pseudo :", 20f);
             pseudoInput = UIFactory.CreateInputField(col, "PseudoInput", "Votre pseudo");
 
-            UIFactory.CreateLabel(col, "TeamHint", "Équipe", 22f);
+            UIFactory.CreateLabel(col, "TeamHint", "Équipe :", 20f);
             var teamRow = UIFactory.CreateRow(col, "TeamRow");
             UIFactory.CreateButton(teamRow, "TeamABtn", "Équipe A", () => SelectTeam(0), new Vector2(150f, 44f));
             UIFactory.CreateButton(teamRow, "TeamBBtn", "Équipe B", () => SelectTeam(1), new Vector2(150f, 44f));
             teamLabel = UIFactory.CreateLabel(col, "TeamLabel", "", 20f);
+
+            UIFactory.CreateColorSelector(col, "Couleur", selectedColor, v => selectedColor = v);
 
             errorLabel = UIFactory.CreateLabel(col, "Error", "", 20f);
             errorLabel.color = new Color(1f, 0.45f, 0.45f, 1f);
 
             UIFactory.CreateButton(col, "ReadyButton", "Je suis prêt", OnReadyClicked);
 
-            statusLabel = UIFactory.CreateLabel(col, "Status", "", 20f);
+            statusLabel = UIFactory.CreateLabel(col, "Status", "", 18f);
+            UIFactory.CreateLabel(col, "PlayerListHeader", "Liste des joueurs :", 20f);
             listContainer = UIFactory.CreateColumn(col, "PlayerList", spacing: 6f);
 
             AddBackButton(root.transform);
@@ -87,8 +91,9 @@ namespace MMPong.UI
             errorLabel.text = "";
             Session.Pseudo = pseudo;
             Session.SelectedTeamIndex = selectedTeam;
+            Session.SelectedColorIndex = selectedColor;
 
-            Lobby.Join(Session.TargetIp, pseudo, selectedTeam);
+            Lobby.Join(Session.TargetIp, pseudo, selectedTeam, selectedColor);
             Lobby.SetReady(true);
             statusLabel.text = "Prêt — en attente du démarrage par l'hôte…";
         }

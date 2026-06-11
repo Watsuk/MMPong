@@ -18,6 +18,7 @@ namespace MMPong.UI
         private int durationSeconds = 120;
         private int skinA = 0;
         private int skinB = 1;
+        private int hostColor = 0; // couleur de paddle du host (son profil)
 
         private TMP_InputField teamAInput;
         private TMP_InputField teamBInput;
@@ -34,7 +35,7 @@ namespace MMPong.UI
             UIFactory.CreateStepper(col, "Joueurs", maxPlayers, MatchConfig.MinPlayers, MatchConfig.MaxPlayers,
                 v => maxPlayers = v);
 
-            UIFactory.CreateLabel(col, "WinHeader", "Condition de victoire", 22f);
+            UIFactory.CreateLabel(col, "WinHeader", "Condition de victoire", 20f);
             var winRow = UIFactory.CreateRow(col, "WinTypeRow");
             UIFactory.CreateButton(winRow, "PointsBtn", "Points", () => SetWinType(WinConditionType.Points),
                 new Vector2(140f, 44f));
@@ -45,15 +46,19 @@ namespace MMPong.UI
             UIFactory.CreateStepper(col, "Points cible", targetPoints, 1, 21, v => targetPoints = v);
             UIFactory.CreateStepper(col, "Durée (s)", durationSeconds, 30, 300, v => durationSeconds = v);
 
-            UIFactory.CreateLabel(col, "TeamAHeader", "Équipe A", 22f);
-            teamAInput = UIFactory.CreateInputField(col, "TeamAName", "Nom équipe A");
+            UIFactory.CreateLabel(col, "TeamAHeader", "Équipe A", 20f);
+            UIFactory.CreateLabel(col, "TeamANameLabel", "Nom de l'équipe :", 18f);
+            teamAInput = UIFactory.CreateInputField(col, "TeamAName", "Nom de l'équipe A");
             teamAInput.text = "Rouge";
             UIFactory.CreateStepper(col, "Skin A", skinA, 0, 3, v => skinA = v);
 
-            UIFactory.CreateLabel(col, "TeamBHeader", "Équipe B", 22f);
-            teamBInput = UIFactory.CreateInputField(col, "TeamBName", "Nom équipe B");
+            UIFactory.CreateLabel(col, "TeamBHeader", "Équipe B", 20f);
+            UIFactory.CreateLabel(col, "TeamBNameLabel", "Nom de l'équipe :", 18f);
+            teamBInput = UIFactory.CreateInputField(col, "TeamBName", "Nom de l'équipe B");
             teamBInput.text = "Bleu";
             UIFactory.CreateStepper(col, "Skin B", skinB, 0, 3, v => skinB = v);
+
+            UIFactory.CreateColorSelector(col, "Votre couleur", hostColor, v => hostColor = v);
 
             errorLabel = UIFactory.CreateLabel(col, "Error", "", 20f);
             errorLabel.color = new Color(1f, 0.45f, 0.45f, 1f);
@@ -100,6 +105,7 @@ namespace MMPong.UI
             }
 
             Session.MatchConfig = config;
+            Session.SelectedColorIndex = hostColor;
             Lobby.Host(config);
             Manager.Show(ScreenId.HostLobby);
         }

@@ -37,7 +37,7 @@ namespace MMPong.UI
         void Host(MatchConfig config);
 
         /// <summary>Rejoint un salon distant (déclenche un <see cref="JoinResult"/>).</summary>
-        void Join(string ip, string pseudo, int teamIndex);
+        void Join(string ip, string pseudo, int teamIndex, int colorIndex);
 
         /// <summary>Met à jour l'état « prêt » du joueur local.</summary>
         void SetReady(bool ready);

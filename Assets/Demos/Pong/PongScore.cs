@@ -16,6 +16,11 @@ public class PongScore : MonoBehaviour
     private int leftScore = 0;
     private int rightScore = 0;
 
+    // Pseudos des joueurs de chaque équipe, affichés sous le nom d'équipe (mode local).
+    // Vide par défaut → le HUD se contente du nom + score (comportement réseau inchangé).
+    private string leftPlayers = "";
+    private string rightPlayers = "";
+
     void Start()
     {
         // On initialise l'affichage au début de la partie
@@ -55,13 +60,31 @@ public class PongScore : MonoBehaviour
         ActualiserAffichage();
     }
 
+    /// <summary>
+    /// Renseigne les pseudos affichés sous chaque nom d'équipe (mode local : un joueur par côté).
+    /// Une valeur vide masque la ligne de pseudos pour le côté concerné.
+    /// </summary>
+    public void SetTeamPlayers(string left, string right)
+    {
+        leftPlayers = left ?? "";
+        rightPlayers = right ?? "";
+        ActualiserAffichage();
+    }
+
     void ActualiserAffichage()
     {
         if (leftTextScore != null) leftTextScore.text = leftScore.ToString();
         if (rightTextScore != null) rightTextScore.text = rightScore.ToString();
 
-        // HUD équipes (coins haut) : nom d'équipe (faux nom pour l'instant) + score
-        if (leftTeamLabel != null) leftTeamLabel.text = $"{leftTeamName}\n{leftScore}";
-        if (rightTeamLabel != null) rightTeamLabel.text = $"{rightTeamName}\n{rightScore}";
+        // HUD équipes (coins haut) : nom d'équipe + pseudos (si fournis) + score
+        if (leftTeamLabel != null) leftTeamLabel.text = ComposerLabel(leftTeamName, leftPlayers, leftScore);
+        if (rightTeamLabel != null) rightTeamLabel.text = ComposerLabel(rightTeamName, rightPlayers, rightScore);
+    }
+
+    static string ComposerLabel(string teamName, string players, int score)
+    {
+        return string.IsNullOrWhiteSpace(players)
+            ? $"{teamName}\nScore : {score}"
+            : $"{teamName}\n{players}\nScore : {score}";
     }
 }

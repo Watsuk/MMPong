@@ -23,6 +23,7 @@ namespace MMPong.Network
         public int listenPort = 0;
         public string pseudo = "player";
         public int teamIndex = 0;   // équipe choisie, envoyée au serveur au JOIN
+        public int colorIndex = -1; // couleur de paddle choisie, envoyée au serveur au JOIN (-1 = défaut équipe)
         public int sendRate = 30;
 
         /// <summary>Émis à chaque snapshot reçu du serveur. Point de couture de la couche jeu.</summary>
@@ -33,6 +34,9 @@ namespace MMPong.Network
 
         /// <summary>Émis avec l'état lobby détaillé (pseudo + équipe + prêt) pour l'UI de salle d'attente.</summary>
         public event Action<LobbyPlayerInfo[]> OnLobbyDetailed;
+
+        /// <summary>Émis avec les couleurs choisies, positionnelles (index = playerId), pour colorer les paddles.</summary>
+        public event Action<int[]> OnLobbyColors;
 
         /// <summary>Émis à la réception de la configuration de match diffusée par le host.</summary>
         public event Action<MatchSettings> OnConfigReceived;
@@ -61,7 +65,7 @@ namespace MMPong.Network
             transport.OnData += OnData;
             transport.Open(listenPort);
             serverChannel = new ReliableChannel(bytes => transport.Send(bytes, server));
-            serverChannel.SendReliable(Protocol.BuildJoin(pseudo, teamIndex));
+            serverChannel.SendReliable(Protocol.BuildJoin(pseudo, teamIndex, colorIndex));
         }
 
         /// <summary>Envoie l'intention de déplacement courante au serveur (réseau pur).</summary>
@@ -99,6 +103,7 @@ namespace MMPong.Network
                 case MessageType.Lobby:
                     OnLobbyReceived?.Invoke(Protocol.ParseLobby(m));
                     OnLobbyDetailed?.Invoke(Protocol.ParseLobbyDetailed(m));
+                    OnLobbyColors?.Invoke(Protocol.ParseLobbyColors(m));
                     break;
                 case MessageType.Start:
                     OnGameStarted?.Invoke();

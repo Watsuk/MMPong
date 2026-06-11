@@ -55,13 +55,13 @@ namespace MMPong.UI
             if (PongGameManager.Instance != null)
                 PongGameManager.Instance.SetActivePlayers(config.MaxPlayerCount);
 
-            client = bootstrap.SetupHost(pseudo, out server);
+            client = bootstrap.SetupHost(pseudo, out server, session.SelectedColorIndex);
             server.Configure(ToSettings(config));
 
             Subscribe(client);
         }
 
-        public void Join(string ip, string pseudo, int teamIndex)
+        public void Join(string ip, string pseudo, int teamIndex, int colorIndex)
         {
             if (bootstrap == null) return;
             isHost = false;
@@ -69,7 +69,7 @@ namespace MMPong.UI
             bootstrap.mode = GameMode.Client;
             bootstrap.serverIp = ip;
 
-            client = bootstrap.SetupClient(pseudo, teamIndex);
+            client = bootstrap.SetupClient(pseudo, teamIndex, colorIndex);
             Subscribe(client);
         }
 

@@ -28,6 +28,27 @@ public class PongPaddle : MonoBehaviour
     // vient du serveur via ApplyNetworkAngle. Inerte par défaut → jeu local non affecté.
     public bool RemoteDisplay = false;
 
+    // Couleur choisie par le joueur (index dans Palette). -1 = couleur par défaut selon l'équipe.
+    public int ColorId = -1;
+
+    /// <summary>
+    /// Palette de couleurs de paddle, partagée entre l'UI (sélecteur), le réseau (on ne
+    /// transmet qu'un index) et le rendu. Plus tard remplacée par une sélection de skins.
+    /// </summary>
+    public static readonly Color[] Palette =
+    {
+        new Color(0.20f, 0.45f, 0.95f), // 0 Bleu
+        new Color(0.90f, 0.25f, 0.25f), // 1 Rouge
+        new Color(0.30f, 0.80f, 0.35f), // 2 Vert
+        new Color(0.95f, 0.80f, 0.25f), // 3 Jaune
+        new Color(0.70f, 0.35f, 0.85f), // 4 Violet
+        new Color(0.95f, 0.55f, 0.20f), // 5 Orange
+    };
+
+    /// <summary>Noms lisibles des couleurs de <see cref="Palette"/> (même ordre).</summary>
+    public static readonly string[] PaletteNames =
+        { "Bleu", "Rouge", "Vert", "Jaune", "Violet", "Orange" };
+
     /// <summary>Angle courant du paddle sur le cercle (lu par le serveur).</summary>
     public float CurrentAngle => currentAngle;
 
@@ -84,17 +105,7 @@ public class PongPaddle : MonoBehaviour
             }
         }
 
-        Renderer r = GetComponent<Renderer>();
-        if (r != null) {
-            if ((int)Player % 2 == 1)
-            {
-                r.material.color = Color.blue;
-            }
-            else
-            {
-                r.material.color = Color.red;
-            }
-        }
+        ApplyColor();
 
         if (radius == 0f)
         {
@@ -171,6 +182,27 @@ public class PongPaddle : MonoBehaviour
         {
             nameText.text = pseudo;
         }
+    }
+
+    /// <summary>
+    /// Définit la couleur du paddle via son index dans <see cref="Palette"/>.
+    /// Un index négatif rétablit la couleur par défaut (selon l'équipe gauche/droite).
+    /// </summary>
+    public void SetColorId(int colorId)
+    {
+        ColorId = colorId;
+        ApplyColor();
+    }
+
+    void ApplyColor()
+    {
+        Renderer r = GetComponent<Renderer>();
+        if (r == null) return;
+
+        if (ColorId >= 0 && ColorId < Palette.Length)
+            r.material.color = Palette[ColorId];
+        else
+            r.material.color = ((int)Player % 2 == 1) ? Color.blue : Color.red; // repli équipe
     }
 
     private bool isLocalPlayerSet = false;

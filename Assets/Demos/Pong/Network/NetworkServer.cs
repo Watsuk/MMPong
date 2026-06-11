@@ -32,6 +32,7 @@ namespace MMPong.Network
         MatchSettings settings;
         readonly int[] teamById = new int[ClientRegistry.MaxPlayers];
         readonly bool[] readyById = new bool[ClientRegistry.MaxPlayers];
+        readonly int[] colorById = new int[ClientRegistry.MaxPlayers];
 
         /// <summary>
         /// Définit la configuration du match (appelée par le lobby host avant <see cref="Start"/>).
@@ -50,6 +51,7 @@ namespace MMPong.Network
             hub = new ReliableHub((bytes, ep) => transport.Send(bytes, ep));
             match = new MatchCoordinator(expectedPlayers);
             pendingInput = new float[ClientRegistry.MaxPlayers];
+            for (int i = 0; i < colorById.Length; i++) colorById[i] = -1; // -1 = couleur d'équipe par défaut
 
             // Valeurs par défaut si aucun Configure() (compat : démarrage hors hub).
             if (settings.maxPlayers == 0)
@@ -80,7 +82,7 @@ namespace MMPong.Network
 
         void HandleJoin(Message m, IPEndPoint from)
         {
-            var (pseudo, team) = Protocol.ParseJoin(m);
+            var (pseudo, team, color) = Protocol.ParseJoin(m);
             if (!registry.TryFindId(from, out int id)) id = registry.Register(from, pseudo);
             if (id < 0)
             {
@@ -89,17 +91,18 @@ namespace MMPong.Network
             }
 
             if (id >= 0 && id < teamById.Length) teamById[id] = team;
+            if (id >= 0 && id < colorById.Length) colorById[id] = color;
 
             hub.SendReliable(from, Protocol.BuildWelcome(id));
             hub.SendReliable(from, Protocol.BuildConfig(settings)); // le client reçoit la config du salon
-            Debug.Log($"[NetworkServer] client joined id={id} pseudo={pseudo} team={team} from {from}");
+            Debug.Log($"[NetworkServer] client joined id={id} pseudo={pseudo} team={team} color={color} from {from}");
 
             BroadcastLobby();
         }
 
         void BroadcastLobby()
             => hub.BroadcastReliable(registry.Endpoints,
-                Protocol.BuildLobby(registry.Pseudos(), teamById, readyById));
+                Protocol.BuildLobby(registry.Pseudos(), teamById, readyById, colorById));
 
         /// <summary>Démarrage autoritaire forcé par le host (bouton « Démarrer »).</summary>
         public void ForceStart()

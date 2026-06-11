@@ -39,6 +39,9 @@ namespace MMPong.UI
         /// <summary>Index de l'équipe choisie (0 = équipe A, 1 = équipe B).</summary>
         public int SelectedTeamIndex;
 
+        /// <summary>Index de la couleur de paddle choisie par le joueur (dans <c>PongPaddle.Palette</c>).</summary>
+        public int SelectedColorIndex;
+
         /// <summary>Remet la session à son état initial (utile en revenant au tout premier écran).</summary>
         public void Reset()
         {
@@ -48,6 +51,7 @@ namespace MMPong.UI
             TargetIp = "";
             MatchConfig = null;
             SelectedTeamIndex = 0;
+            SelectedColorIndex = 0;
         }
     }
 }

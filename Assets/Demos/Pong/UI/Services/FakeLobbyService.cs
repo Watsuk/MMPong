@@ -60,7 +60,7 @@ namespace MMPong.UI
             StartCoroutine(SimulateJoiners());
         }
 
-        public void Join(string ip, string pseudo, int teamIndex)
+        public void Join(string ip, string pseudo, int teamIndex, int colorIndex)
         {
             StopAllCoroutines();
             players.Clear();
