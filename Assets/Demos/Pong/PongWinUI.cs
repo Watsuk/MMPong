@@ -271,6 +271,7 @@ public class PongWinUI : MonoBehaviour
     {
         isShowing = false;
         Panel.SetActive(false);
+        lastNetworkPhase = GamePhase.WaitingForServe; // Reset network phase to prevent immediate re-trigger of win screen
         
         // Remet le bouton dans son état initial si on l'a modifié
         Button existingBtn = Panel.GetComponentInChildren<Button>(true);

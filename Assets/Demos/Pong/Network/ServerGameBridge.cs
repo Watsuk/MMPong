@@ -27,6 +27,10 @@ namespace MMPong.Network
             {
                 ball.scoreLeft = 0;
                 ball.scoreRight = 0;
+                if (ball.scoreDisplay != null)
+                {
+                    ball.scoreDisplay.SetScores(0, 0);
+                }
                 ball.ResetBall(true);
             }
         }
