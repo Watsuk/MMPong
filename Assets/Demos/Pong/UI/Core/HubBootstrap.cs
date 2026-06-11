@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
@@ -23,8 +24,16 @@ namespace MMPong.UI
         [Tooltip("true = mock (FakeLobbyService) pour tester l'UI sans réseau ; false = vrai réseau.")]
         [SerializeField] private bool useMock = false;
 
+        [Tooltip("Police des menus (Space Invaders). Vide → chargée depuis Resources/space_invaders SDF.")]
+        [SerializeField] private TMP_FontAsset menuFont;
+
         void Start()
         {
+            // Police des menus : référence d'inspecteur sinon repli sur l'asset dans Resources.
+            UIFactory.MenuFont = menuFont != null
+                ? menuFont
+                : Resources.Load<TMP_FontAsset>("space_invaders SDF");
+
             EnsureEventSystem();
 
             // ── Canvas plein écran ───────────────────────────────────────────────
