@@ -112,6 +112,11 @@ namespace MMPong.Network
                 }
             }
 
+            if (PongGameManager.Instance != null)
+            {
+                PongGameManager.Instance.AssignPaddlesToCircles();
+            }
+
             hub.SendReliable(from, Protocol.BuildWelcome(id));
             hub.SendReliable(from, Protocol.BuildConfig(settings)); // le client reçoit la config du salon
             Debug.Log($"[NetworkServer] client joined id={id} pseudo={pseudo} team={teamById[id]} from {from}");
@@ -178,6 +183,12 @@ namespace MMPong.Network
                 {
                     bridge.paddles[id].SetPseudo("");
                     bridge.paddles[id].SetColorId(-1);
+                    bridge.paddles[id].TeamIndex = -1;
+                }
+
+                if (PongGameManager.Instance != null)
+                {
+                    PongGameManager.Instance.AssignPaddlesToCircles();
                 }
 
                 Debug.Log($"[NetworkServer] client disconnected id={id} from {from}");

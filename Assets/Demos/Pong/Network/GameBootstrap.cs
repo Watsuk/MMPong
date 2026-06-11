@@ -215,6 +215,11 @@ namespace MMPong.Network
                     paddles[p.id].SetColorId(p.team == 0 ? teamColorA : teamColorB);
                 }
             }
+
+            if (PongGameManager.Instance != null)
+            {
+                PongGameManager.Instance.AssignPaddlesToCircles();
+            }
         }
 
         void OnLobbyReceived(string[] pseudos)
