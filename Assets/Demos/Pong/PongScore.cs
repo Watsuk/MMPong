@@ -57,8 +57,8 @@ public class PongScore : MonoBehaviour
 
     void ActualiserAffichage()
     {
-        leftTextScore.text = leftScore.ToString();
-        rightTextScore.text = rightScore.ToString();
+        if (leftTextScore != null) leftTextScore.text = leftScore.ToString();
+        if (rightTextScore != null) rightTextScore.text = rightScore.ToString();
 
         // HUD équipes (coins haut) : nom d'équipe (faux nom pour l'instant) + score
         if (leftTeamLabel != null) leftTeamLabel.text = $"{leftTeamName}\n{leftScore}";
