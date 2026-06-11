@@ -56,6 +56,16 @@ namespace MMPong.Network
         [Tooltip("Seuil de distance au-delà duquel la balle se téléporte directement à la position prédite.")]
         public float ballSnapThreshold = 2f;
 
+        /// <summary>
+        /// Plafond d'extrapolation (s) de la prédiction de balle. Au-delà, on cesse de l'avancer :
+        /// sans ce garde-fou, un flux STATE interrompu (hôte déconnecté) ferait fuir la balle hors
+        /// du cercle à l'infini.
+        /// </summary>
+        const float MaxExtrapolation = 0.25f;
+
+        /// <summary>Vrai quand l'hôte est perdu (timeout) ou ferme le salon (DISCONNECT) : on fige la balle sur place.</summary>
+        bool connectionLost;
+
         NetworkClient client;
         PongPaddle[] paddles;
         PongBall ball;
@@ -88,8 +98,22 @@ namespace MMPong.Network
                 .ToArray();
         }
 
-        void OnEnable() => client.OnStateReceived += OnStateReceived;
-        void OnDisable() => client.OnStateReceived -= OnStateReceived;
+        void OnEnable()
+        {
+            client.OnStateReceived += OnStateReceived;
+            client.OnServerLost += FreezeBall;
+            client.OnDisconnected += FreezeBall;
+        }
+
+        void OnDisable()
+        {
+            client.OnStateReceived -= OnStateReceived;
+            client.OnServerLost -= FreezeBall;
+            client.OnDisconnected -= FreezeBall;
+        }
+
+        /// <summary>Hôte perdu : on cesse toute mise à jour, la balle reste figée à sa dernière position.</summary>
+        void FreezeBall() => connectionLost = true;
 
         /// <summary>
         /// Callback réseau : décale l'état cible vers le précédent et stocke le nouveau
@@ -153,6 +177,10 @@ namespace MMPong.Network
         {
             if (!hasTarget) return;
 
+            // Hôte perdu : plus aucun état n'arrive → on fige tout sur place (sinon la prédiction
+            // continuerait d'extrapoler la balle hors du cercle).
+            if (connectionLost) return;
+
             // Premier snapshot : pas encore de paire → on applique directement
             if (!hasPrevious)
             {
@@ -200,11 +228,15 @@ namespace MMPong.Network
             {
                 if (predictBall)
                 {
-                    // Temps écoulé depuis la réception du dernier snapshot
-                    float elapsedSinceTarget = Time.time - target.time;
+                    // Temps écoulé depuis la réception du dernier snapshot, plafonné : au-delà de
+                    // MaxExtrapolation on n'extrapole plus (anti-fuite si le flux STATE ralentit/stoppe).
+                    float elapsedSinceTarget = Mathf.Min(Time.time - target.time, MaxExtrapolation);
 
-                    // Extrapoler la position à partir du dernier état connu
-                    Vector2 predictedPos = target.state.ballPos + target.state.ballDir * target.state.ballSpeed * elapsedSinceTarget;
+                    // Partie finie / attente de service : la balle est figée côté serveur (vitesse
+                    // nulle) → on l'épingle sur sa position, sans extrapoler.
+                    Vector2 predictedPos = target.state.phase == GamePhase.Playing
+                        ? target.state.ballPos + target.state.ballDir * target.state.ballSpeed * elapsedSinceTarget
+                        : target.state.ballPos;
 
                     // Lisser le rendu visuel
                     float currentDist = Vector3.Distance(ball.transform.position, predictedPos);

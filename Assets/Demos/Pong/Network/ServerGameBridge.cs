@@ -54,6 +54,11 @@ namespace MMPong.Network
 
             var (phase, winner) = MapPhase(ball != null ? ball.State : PongBallState.Playing);
 
+            // Hors phase de jeu (partie finie, attente de service), la balle est immobile côté
+            // serveur : on rapporte une vitesse nulle pour que la prédiction client la fige aussi
+            // (sinon elle continue d'extrapoler la dernière direction et sort du cercle).
+            bool moving = phase == GamePhase.Playing;
+
             return new GameState
             {
                 seq = seq,
@@ -66,8 +71,8 @@ namespace MMPong.Network
                 hasBonus = BonusManager.Instance != null && BonusManager.Instance.HasBonus,
                 bonusCircleIndex = BonusManager.Instance != null ? BonusManager.Instance.BonusCircleIndex : 0,
                 bonusAngle = BonusManager.Instance != null ? BonusManager.Instance.BonusAngle : 0f,
-                ballDir = ball != null ? (Vector2)ball.BallDirection : Vector2.zero,
-                ballSpeed = ball != null ? ball.BallSpeed : 0f,
+                ballDir = (moving && ball != null) ? (Vector2)ball.BallDirection : Vector2.zero,
+                ballSpeed = (moving && ball != null) ? ball.BallSpeed : 0f,
                 bonusWinner = BonusManager.Instance != null ? BonusManager.Instance.LastBonusWinner : -1
             };
         }
