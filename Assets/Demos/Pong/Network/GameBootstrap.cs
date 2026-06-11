@@ -152,6 +152,7 @@ namespace MMPong.Network
             client.OnLobbyDetailed += OnLobbyDetailed;
             client.OnConfigReceived += OnConfigReceived;
             client.OnGameStarted += OnGameStarted;
+            client.OnServerLost += OnHostLost;   // host perdu → écran + retour menu (clients distants seulement)
             clientGo.AddComponent<ClientStateApplier>();   // applique les STATE reçus à la scène
             clientGo.AddComponent<ClientStateLogger>();
             clientGo.AddComponent<DevReadyTrigger>().client = client;
@@ -164,6 +165,16 @@ namespace MMPong.Network
         {
             // Seam pour UI-2 : masquer le lobby / afficher le HUD. Le rendu réseau suit déjà l'état serveur.
             Debug.Log("[GameBootstrap] Partie démarrée (START reçu).");
+        }
+
+        /// <summary>
+        /// L'hôte ne répond plus : la partie s'arrête côté client. On affiche l'overlay « hôte
+        /// déconnecté » qui, après un court délai, recharge la scène → retour au menu d'accueil.
+        /// </summary>
+        void OnHostLost()
+        {
+            Debug.LogWarning("[GameBootstrap] Hôte déconnecté : arrêt de la partie et retour au menu.");
+            MMPong.UI.HostLostOverlay.Show();
         }
 
         // Couleurs d'équipe définies par le host (index dans PongPaddle.Palette), reçues via CONFIG.

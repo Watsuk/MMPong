@@ -20,6 +20,12 @@ namespace MMPong.Network
         /// <summary>Délai (s) sans battement de cœur au-delà duquel un joueur est marqué déconnecté.</summary>
         public float heartbeatTimeout = 3f;
 
+        /// <summary>
+        /// Fréquence (Hz) des pings serveur→clients. Donne aux clients un signal de vie régulier de
+        /// l'hôte hors phase de jeu (lobby, écran de fin) ; pendant le match, le flux STATE suffit déjà.
+        /// </summary>
+        public float clientPingRate = 1f;
+
         /// <summary>Colle vers la simulation (posée par GameBootstrap). Sans elle, le serveur ne simule rien.</summary>
         public ServerGameBridge bridge;
 
@@ -39,6 +45,7 @@ namespace MMPong.Network
         // État de connexion par battements de cœur : date du dernier heartbeat reçu et statut courant.
         readonly float[] lastSeenById = new float[ClientRegistry.MaxPlayers];
         readonly bool[] connectedById = new bool[ClientRegistry.MaxPlayers];
+        float clientPingTimer;
 
         /// <summary>
         /// Définit la configuration du match (appelée par le lobby host avant <see cref="Start"/>).
@@ -205,6 +212,25 @@ namespace MMPong.Network
 
             hub.TickAll(Time.deltaTime);
             CheckHeartbeats();
+            PingClients(Time.deltaTime);
+        }
+
+        /// <summary>
+        /// Diffuse un ping best-effort à tous les clients à <see cref="clientPingRate"/> Hz : un signe
+        /// de vie régulier de l'hôte que le client utilise pour détecter sa déconnexion (playerId -1,
+        /// ignoré côté client : seul l'arrivée du paquet compte).
+        /// </summary>
+        void PingClients(float dt)
+        {
+            if (clientPingRate <= 0f) return;
+            clientPingTimer += dt;
+            float step = 1f / clientPingRate;
+            if (clientPingTimer < step) return;
+            clientPingTimer = 0f;
+
+            byte[] ping = Protocol.Encode(Protocol.BuildHeartbeat(-1));
+            foreach (var ep in registry.Endpoints)
+                transport.Send(ping, ep);
         }
 
         /// <summary>
