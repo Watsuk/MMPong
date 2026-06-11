@@ -1,6 +1,6 @@
 # Documentation du code réseau — MMPong
 
-> Référence concise du code réseau, dans `Assets/Demos/Pong/` (dossier du jeu).
+> Référence concise du code réseau, dans `Assets/Network/` (dossier du jeu).
 > État actuel : transport UDP + (dé)sérialisation des messages.
 > Voir aussi [`network-roadmap.md`](network-roadmap.md).
 

@@ -11,7 +11,7 @@ Lire en priorité avant toute contribution :
 - [`docs/specification.md`](docs/specification.md) — spec technique (protocole, contrat `GameState`, rôles, roadmap, grille /20)
 - [`docs/network-roadmap.md`](docs/network-roadmap.md) — échelle d'itération de la couche réseau
 - [`docs/network-tasks.md`](docs/network-tasks.md) — tâches réseau détaillées, parallélisables à deux
-- [`docs/network-code.md`](docs/network-code.md) — référence concise du code réseau (fichiers de `Assets/MMPong/Network/`)
+- [`docs/network-code.md`](docs/network-code.md) — référence concise du code réseau (fichiers de `Assets/Network/`)
 
 ## Décisions d'architecture (actées — ne pas dévier sans accord équipe)
 
@@ -35,15 +35,18 @@ Lire en priorité avant toute contribution :
 ## Organisation du code
 
 ```
-Assets/MMPong/
-├── Network/   # Protocol.cs, NetworkServer.cs, NetworkClient.cs, UdpTransport.cs
-├── Game/      # GameState.cs, Ball.cs, Paddle.cs (simulation côté serveur)
-├── UI/        # Lobby.cs, ScoreUI.cs
-└── Scenes/
+Assets/                 # tout le jeu (scène Pong.unity buildée à la racine)
+├── Network/   # Protocol.cs, NetworkServer.cs, NetworkClient.cs, UdpTransport.cs, ...
+├── UI/        # Core/, Screens/, Services/, Widgets/ (hub + lobby)
+├── Input/     # PongInput.inputactions + wrapper généré
+├── Sounds/    # SFX
+├── Textures/  # sprites, matériaux
+└── *.cs       # logique serveur/jeu : GameState, PongGameManager, PongBall, PongPaddle, PongScore, BonusManager, ...
 ```
 
-⚠️ Les dossiers `Assets/Demos/*` (Pong, UDP, TCP, MetaVerse) sont des **projets Unity
-séparés** : référence uniquement, **non réutilisables** comme assets du jeu.
+⚠️ Le rendu dépend de `Assets/Settings/` (URP) et `Assets/TextMesh Pro/` (textes UI),
+référencés par GUID — **ne pas supprimer**. Les anciens projets de démo
+(`Assets/Demos/` : Pong/UDP/TCP/MetaVerse) ont été supprimés du repo lors du clean.
 
 ## Protocole de messages (custom, UDP)
 
@@ -65,7 +68,7 @@ En-tête `[type][reliable][seq]` + payload texte `|`.
 ## État d'avancement
 
 Phase de cadrage terminée (docs rédigées). Couche réseau : **pilier 1 implémenté**
-(`Assets/MMPong/Network/UdpTransport.cs` + `UdpEchoTest.cs`, echo loopback) — reste à
+(`Assets/Network/UdpTransport.cs` + `UdpEchoTest.cs`, echo loopback) — reste à
 tester dans Unity (`reçu : hello`). Suite : pilier 3 (`GameState`) puis pilier 2 (`Protocol.cs`).
 Voir `docs/network-roadmap.md` et `docs/network-tasks.md`.
 

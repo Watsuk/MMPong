@@ -33,7 +33,7 @@ puisse coder en parallèle dès aujourd'hui.
 
 | # | Action | Durée | But |
 |---|--------|-------|-----|
-| A1 | **Squelette** : `Assets/MMPong/{Network,Game,UI,Scenes}` + scène vide | 20 min | structure partagée |
+| A1 | **Squelette** : `Assets/{Network,Game,UI,Scenes}` + scène vide | 20 min | structure partagée |
 | A2 | **Spike echo (jetable)** : echo loopback UDP, juste pour apprendre | 1–2 h | valider que l'UDP marche **avant** de figer le contrat |
 | A3 | **Contrat v0** : struct `GameState` + interfaces | 1 h | la frontière de l'architecture |
 | A4 | **Stubs** : un `FakeNetwork` qui renvoie un `GameState` bidon en local | 1 h | l'app tourne, l'équipe est débloquée |

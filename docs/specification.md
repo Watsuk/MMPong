@@ -13,10 +13,10 @@
 | Plus de 4 joueurs simultanés | 4 paddles sur un terrain (carré) |
 | Protocole **custom** TCP ou UDP (pas de netcode Unity intégré) | **UDP-only**, protocole maison avec en-tête de fiabilité |
 | Synchro temps réel haute fréquence | Tick serveur **30 Hz** |
-| Implémentation C# / Unity3D | Unity, scripts dans `Assets/MMPong/` |
+| Implémentation C# / Unity3D | Unity, scripts dans `Assets/` |
 
-> ⚠️ Les dossiers `Assets/Demos/*` (Pong, UDP, TCP, MetaVerse) sont des **projets Unity
-> séparés** : ils servent de **référence**, on ne les réutilise pas directement.
+> ⚠️ Tout le jeu vit dans `Assets/` (scène `Pong.unity` à la racine). Les anciens
+> projets de démo (`Assets/Demos/`) ont été supprimés du repo lors du clean.
 
 ---
 
@@ -58,7 +58,7 @@ par un octet de fiabilité dans l'en-tête de chaque message.
 > TCP uniquement pour le lobby.
 
 Base technique : l'API C# `UdpClient` (`System.Net.Sockets`), encapsulée dans
-`Assets/MMPong/Network/UdpTransport.cs` (pilier 1, déjà implémenté).
+`Assets/Network/UdpTransport.cs` (pilier 1, déjà implémenté).
 
 ---
 
@@ -132,7 +132,7 @@ public void Tick(float deltaTime);   // avance la balle, collisions, scores
 ## 6. Organisation du code
 
 ```
-Assets/MMPong/
+Assets/
 ├── Network/
 │   ├── UdpTransport.cs    # ✅ pilier 1 : wrapper UDP (Open/Send/OnData/Close)
 │   ├── Protocol.cs        # encode/décode + en-tête de fiabilité (§4)
