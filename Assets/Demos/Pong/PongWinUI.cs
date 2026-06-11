@@ -298,10 +298,22 @@ public class PongWinUI : MonoBehaviour
         if (winnerText != null)
         {
             winnerText.text = $"Victoire de {winnerName}";
-            // Couleur selon le joueur
-            winnerText.color = winnerId == 0
-                ? new Color(0.2f, 0.7f, 1f) // Bleu eau
-                : new Color(1f, 0.4f, 0.1f); // Orange feu
+            
+            // Récupère la couleur réelle de la palette pour l'équipe
+            Color winColor = winnerId == 0 ? new Color(0.2f, 0.7f, 1f) : new Color(1f, 0.4f, 0.1f);
+            PongPaddle[] paddles = FindObjectsByType<PongPaddle>(FindObjectsSortMode.None);
+            foreach (var p in paddles)
+            {
+                if (p != null && p.TeamIndex == winnerId)
+                {
+                    if (p.ColorId >= 0 && p.ColorId < PongPaddle.Palette.Length)
+                    {
+                        winColor = PongPaddle.Palette[p.ColorId];
+                    }
+                    break;
+                }
+            }
+            winnerText.color = winColor;
         }
 
         if (scoreText != null && scores != null && scores.Length >= 2)
@@ -323,8 +335,26 @@ public class PongWinUI : MonoBehaviour
         // Si c'est un match en équipe (plus de 2 paddles dans la scène)
         if (paddles.Length > 2)
         {
-            // Les joueurs impairs (1, 3, 5) appartiennent à la team 0 (Gauche / Bleu)
-            // Les joueurs pairs (2, 4, 6) appartiennent à la team 1 (Droit / Rouge)
+            int colorId = -1;
+            foreach (var p in paddles)
+            {
+                if (p != null && p.TeamIndex == winnerId)
+                {
+                    colorId = p.ColorId;
+                    break;
+                }
+            }
+
+            if (colorId >= 0 && colorId < PongPaddle.PaletteNames.Length)
+            {
+                string colorName = PongPaddle.PaletteNames[colorId];
+                // Accord en français pour "l'Équipe"
+                if (colorName == "Bleu") colorName = "Bleue";
+                else if (colorName == "Vert") colorName = "Verte";
+                else if (colorName == "Violet") colorName = "Violette";
+                return $"l'Équipe {colorName}";
+            }
+
             return winnerId == 0 ? "l'Équipe Bleue" : "l'Équipe Rouge";
         }
 
