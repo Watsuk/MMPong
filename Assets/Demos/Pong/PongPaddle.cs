@@ -29,6 +29,7 @@ public class PongPaddle : MonoBehaviour
 
     // Couleur choisie par le joueur (index dans Palette). -1 = couleur par défaut selon l'équipe.
     public int ColorId = -1;
+    public int TeamIndex = -1;
 
     /// <summary>
     /// Palette de couleurs de paddle, partagée entre l'UI (sélecteur), le réseau (on ne
@@ -96,6 +97,10 @@ public class PongPaddle : MonoBehaviour
             }
         }
 
+        if (TeamIndex == -1)
+        {
+            TeamIndex = ((int)Player % 2 == 1) ? 0 : 1;
+        }
         ApplyColor();
 
         if (radius == 0f)
@@ -177,7 +182,7 @@ public class PongPaddle : MonoBehaviour
         ApplyColor();
     }
 
-    void ApplyColor()
+    public void ApplyColor()
     {
         Renderer r = GetComponent<Renderer>();
         if (r == null) return;
@@ -185,7 +190,7 @@ public class PongPaddle : MonoBehaviour
         if (ColorId >= 0 && ColorId < Palette.Length)
             r.material.color = Palette[ColorId];
         else
-            r.material.color = ((int)Player % 2 == 1) ? Color.blue : Color.red; // repli équipe
+            r.material.color = (TeamIndex == 0) ? Color.blue : Color.red; // repli équipe
     }
 
     private bool isLocalPlayerSet = false;

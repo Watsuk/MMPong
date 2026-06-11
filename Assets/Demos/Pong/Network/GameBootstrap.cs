@@ -210,7 +210,10 @@ namespace MMPong.Network
             foreach (var p in lastLobby)
             {
                 if (p.id >= 0 && p.id < paddles.Length && paddles[p.id] != null)
+                {
+                    paddles[p.id].TeamIndex = p.team;
                     paddles[p.id].SetColorId(p.team == 0 ? teamColorA : teamColorB);
+                }
             }
         }
 
