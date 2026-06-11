@@ -59,5 +59,17 @@ namespace MMPong.Network
                 result[i] = pseudos.TryGetValue(i, out var p) ? p : "";
             return result;
         }
+
+        /// <summary>Retire un client du registre.</summary>
+        public bool Unregister(IPEndPoint ep)
+        {
+            if (TryFindId(ep, out int id))
+            {
+                endpoints.Remove(id);
+                pseudos.Remove(id);
+                return true;
+            }
+            return false;
+        }
     }
 }

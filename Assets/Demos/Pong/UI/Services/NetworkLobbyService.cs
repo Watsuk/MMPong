@@ -29,6 +29,7 @@ namespace MMPong.UI
         public event Action<IReadOnlyList<PlayerInfo>> PlayersChanged;
         public event Action GameStarted;
         public event Action<JoinResult> JoinResult;
+        public event Action Disconnected;
 
         public IReadOnlyList<PlayerInfo> Players => players;
         public bool IsHost => isHost;
@@ -92,6 +93,46 @@ namespace MMPong.UI
                 server.ForceStart();
         }
 
+        public void Leave()
+        {
+            if (client != null)
+            {
+                client.Disconnect();
+                client.OnWelcome -= OnWelcome;
+                client.OnConfigReceived -= OnConfig;
+                client.OnLobbyDetailed -= OnLobby;
+                client.OnGameStarted -= OnStarted;
+                client.OnDisconnected -= OnDisconnectedFromServer;
+                Destroy(client.gameObject);
+                client = null;
+            }
+            if (server != null)
+            {
+                server.Shutdown();
+                Destroy(server.gameObject);
+                server = null;
+            }
+            isHost = false;
+            pendingReady = false;
+            players.Clear();
+
+            // Rétablir l'état local des paddles et de la balle
+            PongPaddle[] paddlesInScene = FindObjectsByType<PongPaddle>(FindObjectsSortMode.None);
+            foreach (var p in paddlesInScene)
+            {
+                if (p != null)
+                {
+                    p.RemoteDisplay = false;
+                    p.DrivenExternally = false;
+                }
+            }
+            PongBall ballInScene = FindFirstObjectByType<PongBall>();
+            if (ballInScene != null)
+            {
+                ballInScene.RemoteDisplay = false;
+            }
+        }
+
         void OnDestroy()
         {
             if (client == null) return;
@@ -99,6 +140,7 @@ namespace MMPong.UI
             client.OnConfigReceived -= OnConfig;
             client.OnLobbyDetailed -= OnLobby;
             client.OnGameStarted -= OnStarted;
+            client.OnDisconnected -= OnDisconnectedFromServer;
         }
 
         private void Subscribe(NetworkClient c)
@@ -108,6 +150,12 @@ namespace MMPong.UI
             c.OnConfigReceived += OnConfig;
             c.OnLobbyDetailed += OnLobby;
             c.OnGameStarted += OnStarted;
+            c.OnDisconnected += OnDisconnectedFromServer;
+        }
+
+        private void OnDisconnectedFromServer()
+        {
+            Disconnected?.Invoke();
         }
 
         private void OnWelcome(int id)

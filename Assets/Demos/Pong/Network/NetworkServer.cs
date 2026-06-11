@@ -75,6 +75,7 @@ namespace MMPong.Network
                 case MessageType.Join: HandleJoin(m, from); break;
                 case MessageType.Input: HandleInput(m); break;
                 case MessageType.Ready: HandleReady(m); break;
+                case MessageType.Disconnect: HandleDisconnect(from); break;
             }
         }
 
@@ -160,6 +161,43 @@ namespace MMPong.Network
             bridge?.StartMatch();
             Debug.Log($"[NetworkServer] START ({match.ReadyCount}/{expectedPlayers} prêts).");
             hub.BroadcastReliable(registry.Endpoints, Protocol.BuildStart());
+        }
+
+        void HandleDisconnect(IPEndPoint from)
+        {
+            if (registry != null && registry.TryFindId(from, out int id))
+            {
+                registry.Unregister(from);
+                if (id >= 0 && id < readyById.Length)
+                {
+                    readyById[id] = false;
+                    teamById[id] = 0;
+                }
+
+                if (bridge != null && bridge.paddles != null && id < bridge.paddles.Length && bridge.paddles[id] != null)
+                {
+                    bridge.paddles[id].SetPseudo("");
+                    bridge.paddles[id].SetColorId(-1);
+                }
+
+                Debug.Log($"[NetworkServer] client disconnected id={id} from {from}");
+                BroadcastLobby();
+            }
+        }
+
+        public void Shutdown()
+        {
+            if (transport != null && transport.IsOpen && registry != null)
+            {
+                byte[] disconnectMsg = Protocol.Encode(Protocol.BuildDisconnect());
+                foreach (var ep in registry.Endpoints)
+                {
+                    if (ep != null)
+                    {
+                        transport.Send(disconnectMsg, ep);
+                    }
+                }
+            }
         }
 
         void Update()

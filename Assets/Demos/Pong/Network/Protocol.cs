@@ -7,7 +7,7 @@ using UnityEngine;
 namespace MMPong.Network
 {
     /// <summary>Types de messages échangés sur le réseau.</summary>
-    public enum MessageType : byte { Input, State, Join, Ready, Welcome, Lobby, Start, End, Ack, Config }
+    public enum MessageType : byte { Input, State, Join, Ready, Welcome, Lobby, Start, End, Ack, Config, Disconnect }
 
     /// <summary>
     /// Configuration de match définie par le host, propagée à tous les clients (message CONFIG).
@@ -493,6 +493,17 @@ namespace MMPong.Network
         {
             return BitConverter.ToUInt32(m.payload, 0);
         }
+
+        // ---------- Disconnect ----------
+        // Payload : vide (0 octet)
+
+        /// <summary>Message de déconnexion ou fermeture du salon.</summary>
+        public static Message BuildDisconnect() => new Message
+        {
+            type = MessageType.Disconnect,
+            reliable = false,
+            payload = Array.Empty<byte>()
+        };
 
         // ---------- Utilitaires ----------
 

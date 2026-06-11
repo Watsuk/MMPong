@@ -43,6 +43,9 @@ namespace MMPong.Network
         /// <summary>Émis à la réception du START : la partie démarre (point de couture UI/jeu).</summary>
         public event Action OnGameStarted;
 
+        /// <summary>Émis quand le serveur signale une déconnexion/fermeture du salon.</summary>
+        public event Action OnDisconnected;
+
         /// <summary>Identifiant attribué par le serveur, ou -1 tant que le WELCOME n'est pas reçu.</summary>
         public int PlayerId => myId;
 
@@ -78,6 +81,15 @@ namespace MMPong.Network
             serverChannel.SendReliable(Protocol.BuildReady(myId));
         }
 
+        /// <summary>Envoie un message de déconnexion au serveur (réseau pur).</summary>
+        public void Disconnect()
+        {
+            if (transport != null && transport.IsOpen && server != null)
+            {
+                transport.Send(Protocol.Encode(Protocol.BuildDisconnect()), server);
+            }
+        }
+
         void OnData(byte[] data, IPEndPoint from)
         {
             Message m = Protocol.Decode(data);
@@ -102,6 +114,10 @@ namespace MMPong.Network
                     break;
                 case MessageType.Start:
                     OnGameStarted?.Invoke();
+                    break;
+                case MessageType.Disconnect:
+                    Debug.Log("[NetworkClient] Reçu DISCONNECT du serveur.");
+                    OnDisconnected?.Invoke();
                     break;
                 case MessageType.State:
                     GameState s = Protocol.ParseState(m);

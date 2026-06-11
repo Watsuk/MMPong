@@ -57,12 +57,20 @@ namespace MMPong.UI
             statusLabel.text = "";
             SelectTeam(0);
             Lobby.PlayersChanged += OnPlayersChanged;
+            Lobby.Disconnected += OnDisconnected;
             OnPlayersChanged(Lobby.Players);
         }
 
         protected override void OnExit()
         {
             Lobby.PlayersChanged -= OnPlayersChanged;
+            Lobby.Disconnected -= OnDisconnected;
+            Lobby.Leave();
+        }
+
+        private void OnDisconnected()
+        {
+            Manager.Show(ScreenId.JoinIp);
         }
 
         private string TeamName(int index)
