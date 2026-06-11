@@ -19,6 +19,7 @@ namespace MMPong.UI
         private int skinA = 0;
         private int skinB = 1;
 
+        private TMP_InputField pseudoInput;
         private TMP_InputField teamAInput;
         private TMP_InputField teamBInput;
         private TextMeshProUGUI winTypeLabel;
@@ -30,6 +31,10 @@ namespace MMPong.UI
             var col = UIFactory.CreateColumn(root.transform, spacing: 12f);
 
             UIFactory.CreateTitle(col, "Configurer le salon");
+
+            UIFactory.CreateLabel(col, "PseudoHint", "Votre pseudo", 22f);
+            pseudoInput = UIFactory.CreateInputField(col, "PseudoInput", "Votre pseudo");
+            pseudoInput.text = "Hôte";
 
             UIFactory.CreateStepper(col, "Joueurs", maxPlayers, MatchConfig.MinPlayers, MatchConfig.MaxPlayers,
                 v => maxPlayers = v);
@@ -80,6 +85,13 @@ namespace MMPong.UI
 
         private void OnOpenClicked()
         {
+            string pseudo = pseudoInput.text != null ? pseudoInput.text.Trim() : "";
+            if (string.IsNullOrEmpty(pseudo))
+            {
+                errorLabel.text = "Le pseudo ne peut pas être vide.";
+                return;
+            }
+
             var config = new MatchConfig
             {
                 MaxPlayerCount = maxPlayers,
@@ -99,6 +111,7 @@ namespace MMPong.UI
                 return;
             }
 
+            Session.Pseudo = pseudo;
             Session.MatchConfig = config;
             Lobby.Host(config);
             Manager.Show(ScreenId.HostLobby);
