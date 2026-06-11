@@ -196,7 +196,9 @@ public class PongPaddle : MonoBehaviour
         if (myRen != null) {
             MeshRenderer outRen = outline.AddComponent<MeshRenderer>();
             outRen.material = new Material(Shader.Find("Unlit/Color"));
-            outRen.material.color = Color.white;
+            // Bordure jaune : repère le paddle contrôlé par le joueur local
+            // (les deux paddles d'une même équipe partageant le même skin).
+            outRen.material.color = Color.yellow;
         }
     }
     bool CheckCollisionWithOtherPaddle(float desiredAngle)

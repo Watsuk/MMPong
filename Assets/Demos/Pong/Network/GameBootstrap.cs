@@ -115,6 +115,7 @@ namespace MMPong.Network
             // sur la même machine. Le host affiche la simulation réelle (pas de RemoteDisplay ici).
             client.pseudo = string.IsNullOrEmpty(pseudo) ? "host" : pseudo;
             client.OnLobbyReceived += OnLobbyReceived;
+            client.OnConfigReceived += OnConfigReceived;
             client.OnGameStarted += OnGameStarted;
             clientGo.AddComponent<ClientStateLogger>();
             clientGo.AddComponent<DevReadyTrigger>().client = client;
@@ -147,6 +148,7 @@ namespace MMPong.Network
             client.pseudo = string.IsNullOrEmpty(pseudo) ? "player" : pseudo;
             client.teamIndex = teamIndex;
             client.OnLobbyReceived += OnLobbyReceived;
+            client.OnConfigReceived += OnConfigReceived;
             client.OnGameStarted += OnGameStarted;
             clientGo.AddComponent<ClientStateApplier>();   // applique les STATE reçus à la scène
             clientGo.AddComponent<ClientStateLogger>();
@@ -160,6 +162,16 @@ namespace MMPong.Network
         {
             // Seam pour UI-2 : masquer le lobby / afficher le HUD. Le rendu réseau suit déjà l'état serveur.
             Debug.Log("[GameBootstrap] Partie démarrée (START reçu).");
+        }
+
+        /// <summary>
+        /// Config de match reçue du serveur (noms d'équipe définis par le host) : on alimente
+        /// le HUD de score avec les vrais noms d'équipe (remplace les faux noms par défaut).
+        /// </summary>
+        void OnConfigReceived(MatchSettings settings)
+        {
+            PongScore score = FindFirstObjectByType<PongScore>();
+            if (score != null) score.SetTeamNames(settings.teamAName, settings.teamBName);
         }
 
         void OnLobbyReceived(string[] pseudos)
