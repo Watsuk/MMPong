@@ -97,7 +97,11 @@ public class PongPaddle : MonoBehaviour
             }
         }
 
-        ApplyColor();
+        if (TeamIndex == -1)
+        {
+            TeamIndex = ((int)Player % 2 == 1) ? 0 : 1;
+        }
+        UpdateTeamColor();
 
         if (radius == 0f)
         {

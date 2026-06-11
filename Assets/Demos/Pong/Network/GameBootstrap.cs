@@ -214,7 +214,7 @@ namespace MMPong.Network
             }
         }
 
-        void OnLobbyReceived(string[] pseudos)
+        void OnLobbyDetailed(LobbyPlayerInfo[] playersInfo)
         {
             int localId = -1;
             NetworkClient client = FindFirstObjectByType<NetworkClient>();
