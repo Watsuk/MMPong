@@ -64,7 +64,10 @@ public class PongWinUI : MonoBehaviour
     void OnDestroy()
     {
         if (networkClient != null)
+        {
             networkClient.OnStateReceived -= OnNetworkState;
+            networkClient.OnGameStarted -= OnGameStarted;
+        }
     }
 
     void TryBindNetworkClient()
@@ -79,6 +82,7 @@ public class PongWinUI : MonoBehaviour
             {
                 networkClient = client;
                 networkClient.OnStateReceived += OnNetworkState;
+                networkClient.OnGameStarted += OnGameStarted;
                 break;
             }
         }
@@ -263,6 +267,20 @@ public class PongWinUI : MonoBehaviour
         }
     }
 
+    void OnGameStarted()
+    {
+        isShowing = false;
+        Panel.SetActive(false);
+        
+        // Remet le bouton dans son état initial si on l'a modifié
+        Button existingBtn = Panel.GetComponentInChildren<Button>(true);
+        if (existingBtn != null)
+        {
+            var btnText = existingBtn.GetComponentInChildren<TextMeshProUGUI>();
+            if (btnText != null) btnText.text = "REJOUER";
+        }
+    }
+
     void ShowWinScreen(int winnerId, int[] scores)
     {
         if (isShowing) return;
@@ -328,7 +346,20 @@ public class PongWinUI : MonoBehaviour
 
     public void OnReplay()
     {
-        Debug.Log("[PongWinUI] OnReplay Clicked! Reloading scene: " + SceneManager.GetActiveScene().name);
-        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+        if (networkClient != null && networkClient.PlayerId >= 0)
+        {
+            networkClient.SendReady();
+            Button existingBtn = Panel.GetComponentInChildren<Button>(true);
+            if (existingBtn != null)
+            {
+                var btnText = existingBtn.GetComponentInChildren<TextMeshProUGUI>();
+                if (btnText != null) btnText.text = "ATTENTE...";
+            }
+        }
+        else
+        {
+            Debug.Log("[PongWinUI] OnReplay Clicked! Reloading scene: " + SceneManager.GetActiveScene().name);
+            SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+        }
     }
 }

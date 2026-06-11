@@ -10,6 +10,7 @@ namespace MMPong.Network
     {
         readonly ReadyTracker ready = new ReadyTracker();
         readonly int expectedPlayers;
+        bool isRematchWaiting;
 
         public MatchCoordinator(int expectedPlayers)
         {
@@ -19,8 +20,18 @@ namespace MMPong.Network
         /// <summary>Vrai si la partie a déjà démarré.</summary>
         public bool Started { get; private set; }
 
+        /// <summary>Vrai si la partie est terminée et qu'on attend que les joueurs relancent.</summary>
+        public bool IsRematchWaiting => isRematchWaiting;
+
         /// <summary>Nombre de joueurs distincts prêts.</summary>
         public int ReadyCount => ready.Count;
+
+        /// <summary>Prépare le coordinateur pour un match suivant.</summary>
+        public void PrepareRematch()
+        {
+            isRematchWaiting = true;
+            ready.Clear();
+        }
 
         /// <summary>
         /// Marque un joueur prêt ; renvoie vrai <b>exactement une fois</b>, lorsque le quota
@@ -29,8 +40,11 @@ namespace MMPong.Network
         public bool TryStart(int readyPlayerId)
         {
             ready.MarkReady(readyPlayerId);
-            if (Started || !ready.AllReady(expectedPlayers)) return false;
+            if (!isRematchWaiting && Started) return false;
+            if (!ready.AllReady(expectedPlayers)) return false;
+            
             Started = true;
+            isRematchWaiting = false;
             return true;
         }
 
@@ -40,8 +54,9 @@ namespace MMPong.Network
         /// </summary>
         public bool ForceStart()
         {
-            if (Started) return false;
+            if (!isRematchWaiting && Started) return false;
             Started = true;
+            isRematchWaiting = false;
             return true;
         }
     }

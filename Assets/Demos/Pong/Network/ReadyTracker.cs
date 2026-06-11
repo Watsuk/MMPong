@@ -19,5 +19,8 @@ namespace MMPong.Network
 
         /// <summary>Vrai si au moins <paramref name="expected"/> joueurs sont prêts.</summary>
         public bool AllReady(int expected) => ready.Count >= expected;
+
+        /// <summary>Vide la liste des joueurs prêts (utile pour le rematch).</summary>
+        public void Clear() => ready.Clear();
     }
 }
