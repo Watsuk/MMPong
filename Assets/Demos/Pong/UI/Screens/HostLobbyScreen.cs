@@ -26,8 +26,9 @@ namespace MMPong.UI
             var col = UIFactory.CreateColumn(root.transform, spacing: 12f);
 
             UIFactory.CreateTitle(col, "Salle d'attente");
-            ipLabel = UIFactory.CreateLabel(col, "Ip", "", 22f);
-            countLabel = UIFactory.CreateLabel(col, "Count", "", 24f);
+            ipLabel = UIFactory.CreateLabel(col, "Ip", "", 20f);
+            countLabel = UIFactory.CreateLabel(col, "Count", "", 22f);
+            UIFactory.CreateLabel(col, "PlayerListHeader", "Liste des joueurs :", 20f);
             listContainer = UIFactory.CreateColumn(col, "PlayerList", spacing: 6f);
 
             startButton = UIFactory.CreateButton(col, "StartButton", "Démarrer", () => Lobby.StartGame());
