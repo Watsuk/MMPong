@@ -26,6 +26,7 @@ public class PongPaddle : MonoBehaviour
     // Affichage distant (client) : quand true, le paddle ne se déplace pas seul ; sa position
     // vient du serveur via ApplyNetworkAngle. Inerte par défaut → jeu local non affecté.
     public bool RemoteDisplay = false;
+    public int TeamIndex = -1;
 
     // Couleur choisie par le joueur (index dans Palette). -1 = couleur par défaut selon l'équipe.
     public int ColorId = -1;
@@ -108,6 +109,21 @@ public class PongPaddle : MonoBehaviour
                 baseAngle = currentAngle;
                 baseRotation = transform.rotation;
                 circleInitialized = true;
+            }
+        }
+    }
+
+    public void UpdateTeamColor()
+    {
+        Renderer r = GetComponent<Renderer>();
+        if (r != null) {
+            if (TeamIndex == 0)
+            {
+                r.material.color = Color.blue;
+            }
+            else if (TeamIndex == 1)
+            {
+                r.material.color = Color.red;
             }
         }
     }

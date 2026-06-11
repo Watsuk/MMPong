@@ -101,6 +101,16 @@ namespace MMPong.Network
                 if (id < teamById.Length) teamById[id] = AssignTeam(id, team);
             }
 
+            if (id >= 0 && id < teamById.Length)
+            {
+                teamById[id] = team;
+                if (bridge != null && bridge.paddles != null && id < bridge.paddles.Length && bridge.paddles[id] != null)
+                {
+                    bridge.paddles[id].TeamIndex = team;
+                    bridge.paddles[id].UpdateTeamColor();
+                }
+            }
+
             hub.SendReliable(from, Protocol.BuildWelcome(id));
             hub.SendReliable(from, Protocol.BuildConfig(settings)); // le client reçoit la config du salon
             Debug.Log($"[NetworkServer] client joined id={id} pseudo={pseudo} team={teamById[id]} from {from}");

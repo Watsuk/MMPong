@@ -228,7 +228,9 @@ namespace MMPong.Network
             {
                 if (paddles[i] != null)
                 {
-                    paddles[i].SetPseudo(pseudos[i]);
+                    paddles[i].SetPseudo(playersInfo[i].pseudo);
+                    paddles[i].TeamIndex = playersInfo[i].team;
+                    paddles[i].UpdateTeamColor();
                     if (i == localId) {
                         paddles[i].SetAsLocalPlayer();
                     }
