@@ -219,6 +219,13 @@ namespace MMPong.Network
             bridge.ApplyInput(pendingInput);
             state = bridge.BuildState(++tickSeq);
 
+            // Tick rate adaptatif
+            if (state.phase != GamePhase.Playing)
+            {
+                int reducedRate = state.phase == GamePhase.GameOver ? 1 : 5;
+                if (tickSeq % (tickRate / reducedRate) != 0) return;
+            }
+
             byte[] bytes = Protocol.Encode(Protocol.BuildState(state));
             foreach (var ep in registry.Endpoints)
                 transport.Send(bytes, ep);

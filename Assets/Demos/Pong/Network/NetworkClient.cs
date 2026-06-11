@@ -53,6 +53,9 @@ namespace MMPong.Network
         IPEndPoint server;
         int myId = -1;
         float currentDir;
+        float lastSentDir = float.NaN;
+        float heartbeatTimer = 0f;
+        const float HeartbeatInterval = 1f;
         float sendTimer;
         readonly SequenceGate stateGate = new SequenceGate();
         ReliableChannel serverChannel;
@@ -134,12 +137,21 @@ namespace MMPong.Network
             // Contrôle réseau unifié : flèches ↑/↓ uniquement, pour TOUS les joueurs (↑ = +1, ↓ = -1).
             currentDir = ReadArrowDirection();
 
+            heartbeatTimer += Time.deltaTime;
+            bool changed = currentDir != lastSentDir;
+            bool heartbeat = heartbeatTimer >= HeartbeatInterval;
+
             float step = 1f / sendRate;
             sendTimer += Time.deltaTime;
             while (sendTimer >= step)
             {
                 sendTimer -= step;
-                SendInput(currentDir);
+                if (changed || heartbeat)
+                {
+                    SendInput(currentDir);
+                    lastSentDir = currentDir;
+                    if (heartbeat) heartbeatTimer = 0f;
+                }
             }
         }
 
