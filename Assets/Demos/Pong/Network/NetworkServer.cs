@@ -17,6 +17,9 @@ namespace MMPong.Network
         public int tickRate = 30;
         public int expectedPlayers = 2;
 
+        /// <summary>Délai (s) sans battement de cœur au-delà duquel un joueur est marqué déconnecté.</summary>
+        public float heartbeatTimeout = 3f;
+
         /// <summary>Colle vers la simulation (posée par GameBootstrap). Sans elle, le serveur ne simule rien.</summary>
         public ServerGameBridge bridge;
 
@@ -32,6 +35,10 @@ namespace MMPong.Network
         MatchSettings settings;
         readonly int[] teamById = new int[ClientRegistry.MaxPlayers];
         readonly bool[] readyById = new bool[ClientRegistry.MaxPlayers];
+
+        // État de connexion par battements de cœur : date du dernier heartbeat reçu et statut courant.
+        readonly float[] lastSeenById = new float[ClientRegistry.MaxPlayers];
+        readonly bool[] connectedById = new bool[ClientRegistry.MaxPlayers];
 
         /// <summary>
         /// Définit la configuration du match (appelée par le lobby host avant <see cref="Start"/>).
@@ -75,6 +82,25 @@ namespace MMPong.Network
                 case MessageType.Join: HandleJoin(m, from); break;
                 case MessageType.Input: HandleInput(m); break;
                 case MessageType.Ready: HandleReady(m); break;
+                case MessageType.Heartbeat: HandleHeartbeat(from); break;
+            }
+        }
+
+        /// <summary>
+        /// Battement de cœur reçu : on rafraîchit la date du dernier signe de vie du joueur (résolu
+        /// par son endpoint). S'il était marqué déconnecté, il revient « connecté » et on rediffuse
+        /// le lobby pour repasser sa pastille au vert chez les autres.
+        /// </summary>
+        void HandleHeartbeat(IPEndPoint from)
+        {
+            if (!registry.TryFindId(from, out int id) || id < 0 || id >= ClientRegistry.MaxPlayers) return;
+
+            lastSeenById[id] = Time.time;
+            if (!connectedById[id])
+            {
+                connectedById[id] = true;
+                Debug.Log($"[NetworkServer] joueur id={id} reconnecté.");
+                BroadcastLobby();
             }
         }
 
@@ -99,6 +125,11 @@ namespace MMPong.Network
                     return;
                 }
                 if (id < teamById.Length) teamById[id] = AssignTeam(id, team);
+                if (id < connectedById.Length)
+                {
+                    connectedById[id] = true;
+                    lastSeenById[id] = Time.time;
+                }
             }
 
             if (id >= 0 && id < teamById.Length)
@@ -130,7 +161,7 @@ namespace MMPong.Network
 
         void BroadcastLobby()
             => hub.BroadcastReliable(registry.Endpoints,
-                Protocol.BuildLobby(registry.Pseudos(), teamById, readyById));
+                Protocol.BuildLobby(registry.Pseudos(), teamById, readyById, connectedById));
 
         /// <summary>Démarrage autoritaire forcé par le host (bouton « Démarrer »).</summary>
         public void ForceStart()
@@ -173,6 +204,28 @@ namespace MMPong.Network
             }
 
             hub.TickAll(Time.deltaTime);
+            CheckHeartbeats();
+        }
+
+        /// <summary>
+        /// Marque déconnecté tout joueur enregistré dont le dernier battement de cœur dépasse le
+        /// timeout, puis rediffuse le lobby une seule fois si au moins un statut a changé (la pastille
+        /// passe au rouge chez les autres). Reconnexion gérée par <see cref="HandleHeartbeat"/>.
+        /// </summary>
+        void CheckHeartbeats()
+        {
+            bool changed = false;
+            foreach (int id in registry.Ids)
+            {
+                if (id < 0 || id >= ClientRegistry.MaxPlayers) continue;
+                if (connectedById[id] && Time.time - lastSeenById[id] > heartbeatTimeout)
+                {
+                    connectedById[id] = false;
+                    changed = true;
+                    Debug.Log($"[NetworkServer] joueur id={id} déconnecté (aucun battement depuis {heartbeatTimeout}s).");
+                }
+            }
+            if (changed) BroadcastLobby();
         }
 
         void Tick()

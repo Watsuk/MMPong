@@ -137,7 +137,7 @@ namespace MMPong.UI
         {
             players.Clear();
             foreach (var p in arr)
-                players.Add(new PlayerInfo(p.id, p.pseudo, p.team, p.ready));
+                players.Add(new PlayerInfo(p.id, p.pseudo, p.team, p.ready, p.connected));
             PlayersChanged?.Invoke(players);
         }
 

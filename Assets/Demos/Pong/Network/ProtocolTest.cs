@@ -48,10 +48,11 @@ namespace MMPong.Network
             var join = Protocol.ParseJoin(Roundtrip(Protocol.BuildJoin("ali|ce,bob", 1)));
             Check("Join (sanitize + team)", join.pseudo == "alicebob" && join.team == 1);
 
-            // Lobby (pseudos + équipes + prêt positionnels)
+            // Lobby (pseudos + équipes + prêt + connexion positionnels)
             var lobbyMsg = Roundtrip(Protocol.BuildLobby(
                 new[] { "alice", "bob", "charlie", "" },
                 new[] { 0, 1, 0, 0 },
+                new[] { true, false, true, false },
                 new[] { true, false, true, false }));
             var lobby = Protocol.ParseLobby(lobbyMsg);
             Check("Lobby (pseudos)", lobby.Length == 4 && lobby[2] == "charlie");
@@ -59,6 +60,10 @@ namespace MMPong.Network
             Check("Lobby (détaillé)", lobbyDetail.Length == 3
                 && lobbyDetail[2].pseudo == "charlie" && lobbyDetail[2].team == 0 && lobbyDetail[2].ready
                 && lobbyDetail[1].team == 1 && !lobbyDetail[1].ready);
+            Check("Lobby (connexion)", lobbyDetail[0].connected && !lobbyDetail[1].connected && lobbyDetail[2].connected);
+
+            // Heartbeat (round-trip de l'id joueur)
+            Check("Heartbeat", Protocol.ParseHeartbeat(Roundtrip(Protocol.BuildHeartbeat(3))) == 3);
 
             // Config (round-trip)
             var cfg = Protocol.ParseConfig(Roundtrip(Protocol.BuildConfig(new MatchSettings

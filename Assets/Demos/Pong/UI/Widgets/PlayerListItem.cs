@@ -35,9 +35,12 @@ namespace MMPong.UI
         /// <summary>Met à jour la ligne avec l'état d'un joueur.</summary>
         public void Bind(PlayerInfo player)
         {
+            string dot = player.IsConnected
+                ? "<color=#6CD66C>●</color>"
+                : "<color=#E84B4B>●</color>";
             string team = player.TeamIndex == 0 ? "Équipe A" : "Équipe B";
             string ready = player.IsReady ? "<color=#6CD66C>Prêt</color>" : "<color=#C8C864>En attente</color>";
-            label.text = $"{player.Pseudo}  —  {team}  —  {ready}";
+            label.text = $"{dot} {player.Pseudo}  —  {team}  —  {ready}";
         }
     }
 }

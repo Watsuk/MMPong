@@ -24,6 +24,8 @@ namespace MMPong.Network
         public string pseudo = "player";
         public int teamIndex = 0;   // équipe choisie, envoyée au serveur au JOIN
         public int sendRate = 30;
+        /// <summary>Battements de cœur par seconde (signe de vie best-effort vers le serveur).</summary>
+        public float heartbeatRate = 1f;
 
         /// <summary>Émis à chaque snapshot reçu du serveur. Point de couture de la couche jeu.</summary>
         public event Action<GameState> OnStateReceived;
@@ -51,6 +53,7 @@ namespace MMPong.Network
         int myId = -1;
         float currentDir;
         float sendTimer;
+        float heartbeatTimer;
         readonly SequenceGate stateGate = new SequenceGate();
         ReliableChannel serverChannel;
 
@@ -124,6 +127,21 @@ namespace MMPong.Network
             {
                 sendTimer -= step;
                 SendInput(currentDir);
+            }
+
+            SendHeartbeatTick();
+        }
+
+        /// <summary>Émet un battement de cœur à <see cref="heartbeatRate"/> Hz une fois identifié (best-effort).</summary>
+        void SendHeartbeatTick()
+        {
+            if (myId < 0 || heartbeatRate <= 0f) return;
+            float beat = 1f / heartbeatRate;
+            heartbeatTimer += Time.deltaTime;
+            while (heartbeatTimer >= beat)
+            {
+                heartbeatTimer -= beat;
+                transport.Send(Protocol.Encode(Protocol.BuildHeartbeat(myId)), server);
             }
         }
 

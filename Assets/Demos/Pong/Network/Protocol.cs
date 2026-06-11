@@ -7,7 +7,7 @@ using UnityEngine;
 namespace MMPong.Network
 {
     /// <summary>Types de messages échangés sur le réseau.</summary>
-    public enum MessageType : byte { Input, State, Join, Ready, Welcome, Lobby, Start, End, Ack, Config }
+    public enum MessageType : byte { Input, State, Join, Ready, Welcome, Lobby, Start, End, Ack, Config, Heartbeat }
 
     /// <summary>
     /// Configuration de match définie par le host, propagée à tous les clients (message CONFIG).
@@ -32,6 +32,8 @@ namespace MMPong.Network
         public string pseudo;
         public int team;
         public bool ready;
+        /// <summary>Vrai tant que le serveur reçoit les battements de cœur du joueur ; faux après timeout.</summary>
+        public bool connected;
     }
 
     /// <summary>
@@ -330,6 +332,29 @@ namespace MMPong.Network
                 return ReadInt(ms);
         }
 
+        // ---------- Heartbeat ----------
+        // Payload : [playerId:4]
+
+        /// <summary>
+        /// Battement de cœur : le client signale périodiquement qu'il est toujours là (best-effort).
+        /// Le serveur en déduit l'état de connexion ; au-delà du timeout sans battement, le joueur
+        /// est marqué déconnecté.
+        /// </summary>
+        public static Message BuildHeartbeat(int playerId)
+        {
+            using (var ms = new MemoryStream(4))
+            {
+                WriteInt(ms, playerId);
+                return new Message { type = MessageType.Heartbeat, reliable = false, payload = ms.ToArray() };
+            }
+        }
+
+        public static int ParseHeartbeat(Message m)
+        {
+            using (var ms = new MemoryStream(m.payload))
+                return ReadInt(ms);
+        }
+
         // ---------- Welcome ----------
         // Payload : [playerId:4]
 
@@ -350,14 +375,16 @@ namespace MMPong.Network
         }
 
         // ---------- Lobby ----------
-        // Payload : [count:1] puis par joueur : [pseudoLen:2][pseudo:N][team:4][ready:1]
+        // Payload : [count:1] puis par joueur : [pseudoLen:2][pseudo:N][team:4][ready:1][connected:1]
         // Positionnel : index = playerId, slots libres encodés avec un pseudo vide.
 
         /// <summary>
         /// État du lobby diffusé par le serveur : pour chaque slot (indexé par id), pseudo + équipe
-        /// + état prêt. Les arrays sont positionnels (longueur = MaxPlayers, "" pour les slots libres).
+        /// + état prêt + état de connexion (battements de cœur). Les arrays sont positionnels
+        /// (longueur = MaxPlayers, "" pour les slots libres). <paramref name="connected"/> null →
+        /// tous considérés connectés (compat).
         /// </summary>
-        public static Message BuildLobby(string[] pseudos, int[] teams, bool[] ready)
+        public static Message BuildLobby(string[] pseudos, int[] teams, bool[] ready, bool[] connected = null)
         {
             using (var ms = new MemoryStream(96))
             {
@@ -368,6 +395,8 @@ namespace MMPong.Network
                     WriteString(ms, Sanitize(pseudos[i]));
                     WriteInt(ms, teams != null && i < teams.Length ? teams[i] : 0);
                     ms.WriteByte(ready != null && i < ready.Length && ready[i] ? (byte)1 : (byte)0);
+                    bool isConnected = connected == null || (i < connected.Length && connected[i]);
+                    ms.WriteByte(isConnected ? (byte)1 : (byte)0);
                 }
                 return new Message { type = MessageType.Lobby, reliable = true, payload = ms.ToArray() };
             }
@@ -385,12 +414,13 @@ namespace MMPong.Network
                     pseudos[i] = ReadString(ms);
                     ReadInt(ms);        // team (ignorée ici)
                     ms.ReadByte();      // ready (ignoré ici)
+                    ms.ReadByte();      // connected (ignoré ici)
                 }
                 return pseudos;
             }
         }
 
-        /// <summary>Joueurs occupés du lobby (pseudo + équipe + prêt), pour l'UI de salle d'attente.</summary>
+        /// <summary>Joueurs occupés du lobby (pseudo + équipe + prêt + connexion), pour l'UI de salle d'attente.</summary>
         public static LobbyPlayerInfo[] ParseLobbyDetailed(Message m)
         {
             using (var ms = new MemoryStream(m.payload))
@@ -402,9 +432,10 @@ namespace MMPong.Network
                     string pseudo = ReadString(ms);
                     int team = ReadInt(ms);
                     bool ready = ms.ReadByte() != 0;
+                    bool connected = ms.ReadByte() != 0;
                     if (string.IsNullOrEmpty(pseudo))
                         continue;
-                    list.Add(new LobbyPlayerInfo { id = i, pseudo = pseudo, team = team, ready = ready });
+                    list.Add(new LobbyPlayerInfo { id = i, pseudo = pseudo, team = team, ready = ready, connected = connected });
                 }
                 return list.ToArray();
             }
