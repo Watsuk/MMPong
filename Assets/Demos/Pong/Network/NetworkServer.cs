@@ -169,7 +169,26 @@ namespace MMPong.Network
         /// </summary>
         int AssignTeam(int newId, int requested)
         {
-            return requested == 1 ? 1 : 0;
+            int wanted = requested == 1 ? 1 : 0;
+            int other = 1 - wanted;
+            int cap = (expectedPlayers + 1) / 2; // ceil(expectedPlayers / 2)
+
+            // Compte les membres déjà attribués dans chaque équipe (le nouveau joueur est déjà
+            // enregistré mais son équipe n'est pas encore fixée → on l'exclut).
+            int countWanted = 0, countOther = 0;
+            foreach (int id in registry.Ids)
+            {
+                if (id == newId) continue;
+                if (teamById[id] == wanted) countWanted++;
+                else countOther++;
+            }
+
+            // On honore l'équipe demandée si elle a de la place, sinon on bascule dans l'autre.
+            if (countWanted < cap) return wanted;
+            if (countOther < cap) return other;
+
+            // Repli (ne devrait pas arriver, total borné à expectedPlayers) : l'équipe la moins remplie.
+            return countWanted <= countOther ? wanted : other;
         }
 
         void BroadcastLobby()
