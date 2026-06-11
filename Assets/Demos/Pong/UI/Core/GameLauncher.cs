@@ -50,6 +50,7 @@ namespace MMPong.UI
             }
 
             var config = MatchConfig.CreateRandom();
+            config.MaxPlayerCount = 2; // Toujours 2 joueurs en local
             if (PongGameManager.Instance != null)
                 PongGameManager.Instance.SetActivePlayers(config.MaxPlayerCount);
 
