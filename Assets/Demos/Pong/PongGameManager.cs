@@ -114,20 +114,48 @@ public class PongGameManager : MonoBehaviour
         }
     }
 
-    void AssignPaddlesToCircles()
+    public void AssignPaddlesToCircles()
     {
-        // Spawn par PAIRE de joueurs sur un axe (cercle) donné :
-        //   joueurs 1 & 2 → axe BLEU, 3 & 4 → axe VERT, 5 & 6 → axe ROUGE.
-        // Les cercles sont dessinés avec colors = { red(0), green(1), blue(2) } dans
-        // CreateCircleVisuals, donc bleu/vert/rouge correspondent aux index de cercle [2, 1, 0].
-        // Attribution DÉTERMINISTE (basée sur l'id du joueur, sans Random) → placement identique
-        // sur le host et les clients (le serveur synchronise l'angle des paddles, pas le rayon).
-        int[] circleByPair = { 2, 1, 0 }; // bleu, vert, rouge
+        // On évite d'avoir plus d'un joueur de la même équipe sur un même cercle.
+        // L'ordre des cercles est bleu, vert, rouge (2, 1, 0).
+        int[] circleOrder = { 2, 1, 0 };
 
-        foreach (PongPaddle p in allPaddles)
+        List<PongPaddle> team0Paddles = new List<PongPaddle>();
+        List<PongPaddle> team1Paddles = new List<PongPaddle>();
+
+        // Trier les paddles de manière déterministe par leur index de joueur (Player)
+        List<PongPaddle> sortedPaddles = new List<PongPaddle>(allPaddles);
+        sortedPaddles.Sort((a, b) => ((int)a.Player).CompareTo((int)b.Player));
+
+        foreach (PongPaddle p in sortedPaddles)
         {
-            int pairIndex = ((int)p.Player - 1) / 2;              // 1&2 → 0, 3&4 → 1, 5&6 → 2
-            int circleIndex = circleByPair[pairIndex % circleByPair.Length] % CircleRadii.Length;
+            if (p == null) continue;
+            // Ne placer sur un cercle que les paddles actifs dans la hiérarchie.
+            if (!p.gameObject.activeInHierarchy) continue;
+
+            int team = (p.TeamIndex != -1) ? p.TeamIndex : (((int)p.Player % 2 == 1) ? 0 : 1);
+            if (team == 0)
+                team0Paddles.Add(p);
+            else
+                team1Paddles.Add(p);
+        }
+
+        // Attribution pour l'équipe 0 (un joueur max par cercle)
+        for (int i = 0; i < team0Paddles.Count; i++)
+        {
+            PongPaddle p = team0Paddles[i];
+            int circleIndex = circleOrder[i % circleOrder.Length] % CircleRadii.Length;
+            float radius = CircleRadii[circleIndex];
+
+            paddleToCircleIndex[p] = circleIndex;
+            p.SetCircle(circleIndex, radius, CenterPoint);
+        }
+
+        // Attribution pour l'équipe 1 (un joueur max par cercle)
+        for (int i = 0; i < team1Paddles.Count; i++)
+        {
+            PongPaddle p = team1Paddles[i];
+            int circleIndex = circleOrder[i % circleOrder.Length] % CircleRadii.Length;
             float radius = CircleRadii[circleIndex];
 
             paddleToCircleIndex[p] = circleIndex;
