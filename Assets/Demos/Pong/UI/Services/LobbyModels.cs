@@ -149,15 +149,17 @@ namespace MMPong.UI
         public string Pseudo;
         public int TeamIndex;
         public bool IsReady;
+        public bool IsConnected;
 
         public PlayerInfo() { }
 
-        public PlayerInfo(int id, string pseudo, int teamIndex = 0, bool isReady = false)
+        public PlayerInfo(int id, string pseudo, int teamIndex = 0, bool isReady = false, bool isConnected = true)
         {
             Id = id;
             Pseudo = pseudo;
             TeamIndex = teamIndex;
             IsReady = isReady;
+            IsConnected = isConnected;
         }
     }
 

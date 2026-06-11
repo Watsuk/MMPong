@@ -152,6 +152,8 @@ namespace MMPong.Network
             client.OnLobbyDetailed += OnLobbyDetailed;
             client.OnConfigReceived += OnConfigReceived;
             client.OnGameStarted += OnGameStarted;
+            // Perte de l'hôte (timeout OnServerLost / DISCONNECT gracieux) : gérée par la couche UI
+            // (NetworkLobbyService → ILobbyService.Disconnected → retour à l'écran de saisie d'IP).
             clientGo.AddComponent<ClientStateApplier>();   // applique les STATE reçus à la scène
             clientGo.AddComponent<ClientStateLogger>();
             clientGo.AddComponent<DevReadyTrigger>().client = client;
@@ -192,7 +194,24 @@ namespace MMPong.Network
         {
             lastLobby = players;
             ApplyTeamColors();
+
+            // Regroupe les pseudos par équipe pour le HUD (team 0 = gauche, team 1 = droite),
+            // chacun précédé d'une pastille de connexion (vert = battements reçus, rouge = timeout).
+            var left  = players.Where(p => p.team == 0 && !string.IsNullOrWhiteSpace(p.pseudo)).Select(FormatPlayer);
+            var right = players.Where(p => p.team == 1 && !string.IsNullOrWhiteSpace(p.pseudo)).Select(FormatPlayer);
+
+            PongScore score = FindFirstObjectByType<PongScore>();
+            if (score != null)
+                score.SetTeamPlayers(string.Join("  ", left), string.Join("  ", right));
         }
+
+        // Couleurs des pastilles de connexion (cohérentes avec le « Prêt » vert du lobby).
+        const string DotConnected = "#6CD66C";
+        const string DotDisconnected = "#E84B4B";
+
+        /// <summary>Pseudo précédé d'une pastille ● colorée selon l'état de connexion (rich text TMP).</summary>
+        static string FormatPlayer(LobbyPlayerInfo p)
+            => $"<color={(p.connected ? DotConnected : DotDisconnected)}>●</color> {p.pseudo}";
 
         /// <summary>
         /// Colore chaque paddle selon la couleur de SON équipe (choisie par le host). Nécessite le

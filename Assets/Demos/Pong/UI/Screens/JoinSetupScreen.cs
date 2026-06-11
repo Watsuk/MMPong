@@ -70,6 +70,9 @@ namespace MMPong.UI
 
         private void OnDisconnected()
         {
+            // L'hôte est perdu (déconnexion gracieuse ou timeout). On réaffiche le hub — masqué
+            // pendant la partie — puis on renvoie le joueur à l'écran de saisie d'IP, dans tous les cas.
+            Manager.ShowHub();
             Manager.Show(ScreenId.JoinIp);
         }
 

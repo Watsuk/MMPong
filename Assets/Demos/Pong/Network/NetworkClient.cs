@@ -24,6 +24,8 @@ namespace MMPong.Network
         public string pseudo = "player";
         public int teamIndex = 0;   // équipe choisie, envoyée au serveur au JOIN
         public int sendRate = 30;
+        /// <summary>Délai (s) sans aucun paquet du serveur au-delà duquel on considère l'hôte perdu.</summary>
+        public float serverTimeout = 3f;
 
         /// <summary>Émis à chaque snapshot reçu du serveur. Point de couture de la couche jeu.</summary>
         public event Action<GameState> OnStateReceived;
@@ -43,7 +45,14 @@ namespace MMPong.Network
         /// <summary>Émis à la réception du START : la partie démarre (point de couture UI/jeu).</summary>
         public event Action OnGameStarted;
 
-        /// <summary>Émis quand le serveur signale une déconnexion/fermeture du salon.</summary>
+        /// <summary>
+        /// Émis une seule fois quand le serveur (host) ne donne plus signe de vie au-delà de
+        /// <see cref="serverTimeout"/> : l'hôte est considéré déconnecté (détection par timeout,
+        /// couvre les pertes brutales : crash, fermeture sans Shutdown).
+        /// </summary>
+        public event Action OnServerLost;
+
+        /// <summary>Émis quand le serveur signale explicitement une déconnexion/fermeture du salon (message DISCONNECT).</summary>
         public event Action OnDisconnected;
 
         /// <summary>Identifiant attribué par le serveur, ou -1 tant que le WELCOME n'est pas reçu.</summary>
@@ -54,9 +63,11 @@ namespace MMPong.Network
         int myId = -1;
         float currentDir;
         float lastSentDir = float.NaN;
-        float heartbeatTimer = 0f;
+        float heartbeatTimer = 0f;          // cadence du keepalive INPUT (renvoie l'input même inchangé)
         const float HeartbeatInterval = 1f;
         float sendTimer;
+        float lastServerPacketTime;         // dernier paquet reçu du serveur (détection de perte de l'hôte)
+        bool serverLostFired;
         readonly SequenceGate stateGate = new SequenceGate();
         ReliableChannel serverChannel;
 
@@ -66,6 +77,7 @@ namespace MMPong.Network
             transport = GetComponent<UdpTransport>();
             transport.OnData += OnData;
             transport.Open(listenPort);
+            lastServerPacketTime = Time.time;
             serverChannel = new ReliableChannel(bytes => transport.Send(bytes, server));
             serverChannel.SendReliable(Protocol.BuildJoin(pseudo, teamIndex));
         }
@@ -95,6 +107,9 @@ namespace MMPong.Network
 
         void OnData(byte[] data, IPEndPoint from)
         {
+            // Tout datagramme reçu (STATE, LOBBY, ACK, ping serveur…) prouve que l'hôte est vivant.
+            lastServerPacketTime = Time.time;
+
             Message m = Protocol.Decode(data);
 
             if (m.type == MessageType.Ack) { serverChannel.HandleAck(Protocol.ParseAck(m)); return; }
@@ -152,6 +167,24 @@ namespace MMPong.Network
                     lastSentDir = currentDir;
                     if (heartbeat) heartbeatTimer = 0f;
                 }
+            }
+
+            CheckServerAlive();
+        }
+
+        /// <summary>
+        /// Déclenche <see cref="OnServerLost"/> une seule fois si aucun paquet du serveur n'est
+        /// arrivé depuis <see cref="serverTimeout"/> (uniquement une fois identifié, pour ne pas
+        /// se déclencher pendant la connexion initiale).
+        /// </summary>
+        void CheckServerAlive()
+        {
+            if (myId < 0 || serverLostFired) return;
+            if (Time.time - lastServerPacketTime > serverTimeout)
+            {
+                serverLostFired = true;
+                Debug.LogWarning("[NetworkClient] Hôte injoignable (timeout serveur) → OnServerLost.");
+                OnServerLost?.Invoke();
             }
         }
 

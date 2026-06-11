@@ -17,6 +17,15 @@ namespace MMPong.Network
         public int tickRate = 30;
         public int expectedPlayers = 2;
 
+        /// <summary>Délai (s) sans battement de cœur au-delà duquel un joueur est marqué déconnecté.</summary>
+        public float heartbeatTimeout = 3f;
+
+        /// <summary>
+        /// Fréquence (Hz) des pings serveur→clients. Donne aux clients un signal de vie régulier de
+        /// l'hôte hors phase de jeu (lobby, écran de fin) ; pendant le match, le flux STATE suffit déjà.
+        /// </summary>
+        public float clientPingRate = 1f;
+
         /// <summary>Colle vers la simulation (posée par GameBootstrap). Sans elle, le serveur ne simule rien.</summary>
         public ServerGameBridge bridge;
 
@@ -32,6 +41,11 @@ namespace MMPong.Network
         MatchSettings settings;
         readonly int[] teamById = new int[ClientRegistry.MaxPlayers];
         readonly bool[] readyById = new bool[ClientRegistry.MaxPlayers];
+
+        // État de connexion par battements de cœur : date du dernier heartbeat reçu et statut courant.
+        readonly float[] lastSeenById = new float[ClientRegistry.MaxPlayers];
+        readonly bool[] connectedById = new bool[ClientRegistry.MaxPlayers];
+        float clientPingTimer;
 
         /// <summary>
         /// Définit la configuration du match (appelée par le lobby host avant <see cref="Start"/>).
@@ -73,9 +87,28 @@ namespace MMPong.Network
             switch (m.type)
             {
                 case MessageType.Join: HandleJoin(m, from); break;
-                case MessageType.Input: HandleInput(m); break;
+                case MessageType.Input: HandleInput(m, from); break;
                 case MessageType.Ready: HandleReady(m); break;
                 case MessageType.Disconnect: HandleDisconnect(from); break;
+            }
+        }
+
+        /// <summary>
+        /// Rafraîchit le signe de vie d'un joueur (résolu par son endpoint). S'il était marqué
+        /// déconnecté, il revient « connecté » et on rediffuse le lobby pour repasser sa pastille au
+        /// vert chez les autres. Appelé à chaque INPUT, qui sert de keepalive (renvoyé ≥1×/s par le
+        /// client même quand l'input ne change pas).
+        /// </summary>
+        void MarkSeen(IPEndPoint from)
+        {
+            if (!registry.TryFindId(from, out int id) || id < 0 || id >= ClientRegistry.MaxPlayers) return;
+
+            lastSeenById[id] = Time.time;
+            if (!connectedById[id])
+            {
+                connectedById[id] = true;
+                Debug.Log($"[NetworkServer] joueur id={id} reconnecté.");
+                BroadcastLobby();
             }
         }
 
@@ -100,6 +133,11 @@ namespace MMPong.Network
                     return;
                 }
                 if (id < teamById.Length) teamById[id] = AssignTeam(id, team);
+                if (id < connectedById.Length)
+                {
+                    connectedById[id] = true;
+                    lastSeenById[id] = Time.time;
+                }
             }
 
             if (id >= 0 && id < teamById.Length)
@@ -136,7 +174,7 @@ namespace MMPong.Network
 
         void BroadcastLobby()
             => hub.BroadcastReliable(registry.Endpoints,
-                Protocol.BuildLobby(registry.Pseudos(), teamById, readyById));
+                Protocol.BuildLobby(registry.Pseudos(), teamById, readyById, connectedById));
 
         /// <summary>Démarrage autoritaire forcé par le host (bouton « Démarrer »).</summary>
         public void ForceStart()
@@ -147,8 +185,9 @@ namespace MMPong.Network
             hub.BroadcastReliable(registry.Endpoints, Protocol.BuildStart());
         }
 
-        void HandleInput(Message m)
+        void HandleInput(Message m, IPEndPoint from)
         {
+            MarkSeen(from); // l'INPUT régulier tient le joueur « connecté » (liveness des pastilles)
             var (id, dir) = Protocol.ParseInput(m);
             if (id >= 0 && id < ClientRegistry.MaxPlayers)
                 pendingInput[id] = Mathf.Clamp(dir, -1f, 1f);
@@ -222,6 +261,47 @@ namespace MMPong.Network
             }
 
             hub.TickAll(Time.deltaTime);
+            CheckHeartbeats();
+            PingClients(Time.deltaTime);
+        }
+
+        /// <summary>
+        /// Diffuse un ping best-effort à tous les clients à <see cref="clientPingRate"/> Hz : un signe
+        /// de vie régulier de l'hôte que le client utilise pour détecter sa déconnexion (playerId -1,
+        /// ignoré côté client : seul l'arrivée du paquet compte).
+        /// </summary>
+        void PingClients(float dt)
+        {
+            if (clientPingRate <= 0f) return;
+            clientPingTimer += dt;
+            float step = 1f / clientPingRate;
+            if (clientPingTimer < step) return;
+            clientPingTimer = 0f;
+
+            byte[] ping = Protocol.Encode(Protocol.BuildHeartbeat(-1));
+            foreach (var ep in registry.Endpoints)
+                transport.Send(ping, ep);
+        }
+
+        /// <summary>
+        /// Marque déconnecté tout joueur enregistré dont le dernier signe de vie (INPUT) dépasse le
+        /// timeout, puis rediffuse le lobby une seule fois si au moins un statut a changé (la pastille
+        /// passe au rouge chez les autres). Reconnexion gérée par <see cref="MarkSeen"/>.
+        /// </summary>
+        void CheckHeartbeats()
+        {
+            bool changed = false;
+            foreach (int id in registry.Ids)
+            {
+                if (id < 0 || id >= ClientRegistry.MaxPlayers) continue;
+                if (connectedById[id] && Time.time - lastSeenById[id] > heartbeatTimeout)
+                {
+                    connectedById[id] = false;
+                    changed = true;
+                    Debug.Log($"[NetworkServer] joueur id={id} déconnecté (aucun battement depuis {heartbeatTimeout}s).");
+                }
+            }
+            if (changed) BroadcastLobby();
         }
 
         void Tick()

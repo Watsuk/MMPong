@@ -103,6 +103,7 @@ namespace MMPong.UI
                 client.OnLobbyDetailed -= OnLobby;
                 client.OnGameStarted -= OnStarted;
                 client.OnDisconnected -= OnDisconnectedFromServer;
+                client.OnServerLost -= OnDisconnectedFromServer;
                 Destroy(client.gameObject);
                 client = null;
             }
@@ -141,6 +142,7 @@ namespace MMPong.UI
             client.OnLobbyDetailed -= OnLobby;
             client.OnGameStarted -= OnStarted;
             client.OnDisconnected -= OnDisconnectedFromServer;
+            client.OnServerLost -= OnDisconnectedFromServer;
         }
 
         private void Subscribe(NetworkClient c)
@@ -150,7 +152,8 @@ namespace MMPong.UI
             c.OnConfigReceived += OnConfig;
             c.OnLobbyDetailed += OnLobby;
             c.OnGameStarted += OnStarted;
-            c.OnDisconnected += OnDisconnectedFromServer;
+            c.OnDisconnected += OnDisconnectedFromServer; // déconnexion gracieuse (message DISCONNECT)
+            c.OnServerLost += OnDisconnectedFromServer;   // perte par timeout (crash/fermeture brutale)
         }
 
         private void OnDisconnectedFromServer()
@@ -185,7 +188,7 @@ namespace MMPong.UI
         {
             players.Clear();
             foreach (var p in arr)
-                players.Add(new PlayerInfo(p.id, p.pseudo, p.team, p.ready));
+                players.Add(new PlayerInfo(p.id, p.pseudo, p.team, p.ready, p.connected));
             PlayersChanged?.Invoke(players);
         }
 
