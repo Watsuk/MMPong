@@ -21,6 +21,13 @@ namespace MMPong.UI
         static readonly Color FieldBg = new Color(1f, 1f, 1f, 0.92f);
         static readonly Color TextColor = Color.white;
 
+        /// <summary>
+        /// Police appliquée à tous les textes TMP créés par cette fabrique (titres, labels,
+        /// boutons, champs). Renseignée par <c>HubBootstrap</c> au démarrage (police Space
+        /// Invaders). Si <c>null</c>, TMP utilise sa police par défaut.
+        /// </summary>
+        public static TMP_FontAsset MenuFont { get; set; }
+
         /// <summary>Crée un panneau racine plein écran (fond opaque) sous <paramref name="parent"/>.</summary>
         public static GameObject CreateScreenRoot(Transform parent, string name)
         {
@@ -102,6 +109,7 @@ namespace MMPong.UI
             tmp.enableAutoSizing = true;
             tmp.fontSizeMin = 14f;
             tmp.fontSizeMax = fontSize;
+            ApplyMenuFont(tmp);
 
             AddLayoutElement(go, size);
             return tmp;
@@ -140,6 +148,7 @@ namespace MMPong.UI
             tmp.alignment = TextAlignmentOptions.Center;
             tmp.color = TextColor;
             tmp.raycastTarget = false;
+            ApplyMenuFont(tmp);
 
             AddLayoutElement(go, size);
             return btn;
@@ -175,12 +184,14 @@ namespace MMPong.UI
             placeholderTmp.fontStyle = FontStyles.Italic;
             placeholderTmp.color = new Color(0.2f, 0.2f, 0.2f, 0.6f);
             placeholderTmp.alignment = TextAlignmentOptions.Left;
+            ApplyMenuFont(placeholderTmp);
 
             var textTmp = NewUI("Text", areaGo.transform).AddComponent<TextMeshProUGUI>();
             Stretch(textTmp.GetComponent<RectTransform>());
             textTmp.fontSize = 20f;
             textTmp.color = Color.black;
             textTmp.alignment = TextAlignmentOptions.Left;
+            ApplyMenuFont(textTmp);
 
             input.textViewport = areaRect;
             input.textComponent = textTmp;
@@ -258,6 +269,12 @@ namespace MMPong.UI
         }
 
         // ── Helpers internes ─────────────────────────────────────────────────────
+
+        /// <summary>Applique <see cref="MenuFont"/> au texte si elle est définie (sinon ne touche à rien).</summary>
+        static void ApplyMenuFont(TMP_Text tmp)
+        {
+            if (MenuFont != null) tmp.font = MenuFont;
+        }
 
         static GameObject NewUI(string name, Transform parent)
         {
