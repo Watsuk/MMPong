@@ -226,6 +226,35 @@ public class PongPaddle : MonoBehaviour
         return false;
     }
 
+    /// <summary>
+    /// Flash visuel temporaire du paddle (feedback de race condition sur le bonus).
+    /// Le paddle clignote dans la couleur donnée puis revient à sa couleur d'équipe.
+    /// </summary>
+    public void FlashColor(Color flashColor, float duration = 0.5f, int blinks = 3)
+    {
+        StartCoroutine(FlashCoroutine(flashColor, duration, blinks));
+    }
+
+    private System.Collections.IEnumerator FlashCoroutine(Color flashColor, float duration, int blinks)
+    {
+        Renderer r = GetComponent<Renderer>();
+        if (r == null) yield break;
+
+        Color original = r.material.color;
+        float blinkTime = duration / (blinks * 2f);
+
+        for (int i = 0; i < blinks; i++)
+        {
+            r.material.color = flashColor;
+            yield return new WaitForSeconds(blinkTime);
+            r.material.color = original;
+            yield return new WaitForSeconds(blinkTime);
+        }
+
+        // Garantie : restaure la couleur d'origine
+        r.material.color = original;
+    }
+
     void OnDisable() {
       if (PlayerAction != null) PlayerAction.Disable();
     }

@@ -27,7 +27,8 @@ namespace MMPong.Network
                 phase = GamePhase.GameOver,
                 winner = 0,
                 ballDir = new Vector2(0.707f, -0.707f),
-                ballSpeed = 5.5f
+                ballSpeed = 5.5f,
+                bonusWinner = 2
             };
             var g2 = Protocol.ParseState(Roundtrip(Protocol.BuildState(g)));
             Check("State", g2.seq == 184
@@ -40,6 +41,7 @@ namespace MMPong.Network
                 && g2.scores[0] == 3 && g2.scores[1] == 1
                 && g2.phase == GamePhase.GameOver
                 && g2.winner == 0
+                && g2.bonusWinner == 2
                 && Mathf.Approximately(g2.ballDir.x, 0.707f)
                 && Mathf.Approximately(g2.ballDir.y, -0.707f)
                 && Mathf.Approximately(g2.ballSpeed, 5.5f));

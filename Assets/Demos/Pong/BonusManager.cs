@@ -11,6 +11,19 @@ namespace MMPong
         public int BonusCircleIndex { get; private set; }
         public float BonusAngle { get; private set; }
 
+        /// <summary>
+        /// playerId (index dans le tableau paddles) du dernier joueur à avoir ramassé un bonus.
+        /// -1 = aucun pickup récent. Réinitialisé au spawn du bonus suivant.
+        /// Sert à la synchronisation réseau (GameState.bonusWinner) et au feedback client.
+        /// </summary>
+        public int LastBonusWinner { get; private set; } = -1;
+
+        /// <summary>
+        /// playerIds des joueurs qui étaient dans la zone de collision mais ont perdu la course.
+        /// Vide si aucun concurrent. Utilisé pour afficher un feedback "Trop tard !" côté client.
+        /// </summary>
+        public int[] LastBonusLosers { get; private set; } = System.Array.Empty<int>();
+
         [Header("SFX")]
         public AudioClip bonusSpawnClip;
         public AudioClip bonusPickupClip;
@@ -114,6 +127,8 @@ namespace MMPong
                     if (spawnTimer <= 0f)
                     {
                         HasBonus = true;
+                        LastBonusWinner = -1;   // reset : pas de pickup en cours
+                        LastBonusLosers = System.Array.Empty<int>();
                         if (PongGameManager.Instance != null && PongGameManager.Instance.CircleRadii != null)
                         {
                             System.Collections.Generic.List<int> activeCircleIndices = new System.Collections.Generic.List<int>();
@@ -176,23 +191,77 @@ namespace MMPong
             }
         }
 
+        /// <summary>
+        /// Détection de collision avec résolution de course (race condition) :
+        /// au lieu de prendre le premier paddle trouvé dans la zone, on collecte
+        /// TOUS les candidats et on choisit le plus proche (angleDiff minimal).
+        /// Algorithme déterministe : même frame, même résultat, quel que soit
+        /// l'ordre de FindObjectsByType.
+        /// </summary>
         void CheckCollisions()
         {
             PongPaddle[] paddles = FindObjectsByType<PongPaddle>(FindObjectsSortMode.None);
-            foreach (var paddle in paddles)
+
+            // Phase 1 : collecter tous les paddles dans la zone de collision
+            PongPaddle bestPaddle = null;
+            float bestDiff = float.MaxValue;
+            var candidates = new System.Collections.Generic.List<(PongPaddle paddle, float diff, int id)>();
+
+            for (int i = 0; i < paddles.Length; i++)
             {
-                if (PongGameManager.Instance.GetCircleIndex(paddle) == BonusCircleIndex)
+                var paddle = paddles[i];
+                if (PongGameManager.Instance.GetCircleIndex(paddle) != BonusCircleIndex)
+                    continue;
+
+                float angleDiff = Mathf.Abs(Mathf.DeltaAngle(paddle.CurrentAngle, BonusAngle));
+                if (angleDiff < 15f) // seuil de collision (15° assez large pour un paddle rapide)
                 {
-                    float angleDiff = Mathf.Abs(Mathf.DeltaAngle(paddle.CurrentAngle, BonusAngle));
-                    if (angleDiff < 15f) // Collision threshold (15 degrees is wide enough for a fast paddle)
+                    int playerId = (int)paddle.Player - 1; // PongPlayer est 1-indexed
+                    candidates.Add((paddle, angleDiff, playerId));
+
+                    if (angleDiff < bestDiff)
                     {
-                        // Take bonus
-                        HasBonus = false;
-                        spawnTimer = 10f;
-                        PlayClip(bonusPickupClip);
-                        StartCoroutine(ApplySpeedAdvantage(paddle));
-                        break;
+                        bestDiff = angleDiff;
+                        bestPaddle = paddle;
                     }
+                }
+            }
+
+            // Phase 2 : résolution — le plus proche gagne
+            if (bestPaddle != null)
+            {
+                int winnerId = (int)bestPaddle.Player - 1;
+                HasBonus = false;
+                spawnTimer = 10f;
+                LastBonusWinner = winnerId;
+                PlayClip(bonusPickupClip);
+                StartCoroutine(ApplySpeedAdvantage(bestPaddle));
+
+                // Identifier les perdants (dans la zone mais pas le gagnant)
+                var losers = new System.Collections.Generic.List<int>();
+                foreach (var (paddle, diff, id) in candidates)
+                {
+                    if (id != winnerId)
+                        losers.Add(id);
+                }
+                LastBonusLosers = losers.ToArray();
+
+                // Log détaillé de la résolution de la course
+                if (candidates.Count > 1)
+                {
+                    string details = "";
+                    foreach (var (paddle, diff, id) in candidates)
+                    {
+                        string tag = (id == winnerId) ? " ★ GAGNANT" : " ✗ perdant";
+                        details += $"\n    Player {id + 1} (angleDiff={diff:F2}°){tag}";
+                    }
+                    Debug.Log($"⚡ [BonusManager] RACE CONDITION DÉTECTÉE — {candidates.Count} joueurs dans la zone !" +
+                              $"\n  Résolution : le plus proche gagne (Player {winnerId + 1}, diff={bestDiff:F2}°)" +
+                              details);
+                }
+                else
+                {
+                    Debug.Log($"🟡 [BonusManager] Bonus ramassé par Player {winnerId + 1} (angleDiff={bestDiff:F2}°, aucune contestation)");
                 }
             }
         }

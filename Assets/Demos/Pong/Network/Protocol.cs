@@ -211,7 +211,7 @@ namespace MMPong.Network
         // ---------- State ----------
         // Payload : [ballPos.x:4][ballPos.y:4][ballOwner:4][phase:1][winner:4]
         //           [paddleCount:1][paddleAngle0:4]...[scoreCount:1][score0:4]...
-        //           [hasBonus:1][bonusCircleIndex:4][bonusAngle:4]
+        //           [hasBonus:1][bonusCircleIndex:4][bonusAngle:4][bonusWinner:4]
 
         /// <summary>Snapshot d'état (le <c>seq</c> du message reprend celui du GameState).</summary>
         public static Message BuildState(GameState s)
@@ -243,6 +243,7 @@ namespace MMPong.Network
                 ms.WriteByte(s.hasBonus ? (byte)1 : (byte)0);
                 WriteInt(ms, s.bonusCircleIndex);
                 WriteFloat(ms, s.bonusAngle);
+                WriteInt(ms, s.bonusWinner);
 
                 // Balle direction & vitesse
                 WriteFloat(ms, s.ballDir.x);
@@ -278,6 +279,7 @@ namespace MMPong.Network
                 s.hasBonus = ms.ReadByte() != 0;
                 s.bonusCircleIndex = ReadInt(ms);
                 s.bonusAngle = ReadFloat(ms);
+                s.bonusWinner = ReadInt(ms);
 
                 // Balle direction & vitesse
                 s.ballDir = new Vector2(ReadFloat(ms), ReadFloat(ms));

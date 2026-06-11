@@ -68,6 +68,9 @@ namespace MMPong.Network
         bool hasTarget;
         bool hasPrevious;
 
+        /// <summary>Dernier bonusWinner vu, pour détecter les transitions (pickup events).</summary>
+        int lastSeenBonusWinner = -1;
+
         void Awake()
         {
             client = GetComponent<NetworkClient>();
@@ -120,6 +123,26 @@ namespace MMPong.Network
 
             if (BonusManager.Instance != null)
                 BonusManager.Instance.SyncNetworkState(s.hasBonus, s.bonusCircleIndex, s.bonusAngle);
+
+            // Feedback visuel de résolution de course (race condition) sur le bonus.
+            // Détecte la transition bonusWinner : -1 → playerId = un pickup vient d'avoir lieu.
+            if (s.bonusWinner >= 0 && s.bonusWinner != lastSeenBonusWinner)
+            {
+                // Flash vert sur le gagnant
+                if (s.bonusWinner < paddles.Length && paddles[s.bonusWinner] != null)
+                    paddles[s.bonusWinner].FlashColor(Color.green, 0.6f, 3);
+
+                // Flash rouge sur les autres paddles (les "perdants potentiels")
+                // Tous les joueurs voient qui a gagné le bonus
+                for (int i = 0; i < paddles.Length; i++)
+                {
+                    if (i != s.bonusWinner && paddles[i] != null)
+                        paddles[i].FlashColor(Color.red, 0.4f, 2);
+                }
+
+                Debug.Log($"[ClientStateApplier] Bonus ramassé par Player {s.bonusWinner + 1} (feedback visuel)");
+            }
+            lastSeenBonusWinner = s.bonusWinner;
         }
 
         /// <summary>

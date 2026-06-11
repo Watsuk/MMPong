@@ -48,5 +48,12 @@ namespace MMPong
 
         /// <summary>Vitesse scalaire de la balle.</summary>
         public float ballSpeed;
+
+        /// <summary>
+        /// playerId du joueur qui vient de ramasser le bonus (-1 = aucun pickup ce tick).
+        /// Permet aux clients de détecter le gagnant d'une situation de course et d'afficher
+        /// un feedback visuel (flash vert pour le gagnant, flash rouge pour les perdants proches).
+        /// </summary>
+        public int bonusWinner;
     }
 }
