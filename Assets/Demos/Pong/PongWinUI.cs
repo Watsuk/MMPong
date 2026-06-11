@@ -333,10 +333,8 @@ public class PongWinUI : MonoBehaviour
             int playerId = (int)p.Player - 1; // PongPlayer enum commence à 1
             if (playerId == winnerId)
             {
-                // Cherche le TextMeshPro enfant "PseudoText"
-                TextMeshPro nameText = p.GetComponentInChildren<TextMeshPro>();
-                if (nameText != null && !string.IsNullOrWhiteSpace(nameText.text))
-                    return nameText.text;
+                if (!string.IsNullOrWhiteSpace(p.Pseudo))
+                    return p.Pseudo;
             }
         }
 

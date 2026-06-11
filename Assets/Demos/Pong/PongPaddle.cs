@@ -1,7 +1,6 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 using System.Collections.Generic;
-using TMPro;
 
 public enum PongPlayer {
   PlayerLeft = 1,
@@ -69,21 +68,13 @@ public class PongPaddle : MonoBehaviour
     private int circleIndex;
     private bool circleInitialized = false;
 
-    private TextMeshPro nameText;
+    /// <summary>Pseudo du joueur (stocké pour l'écran de victoire ; plus affiché au-dessus du paddle).</summary>
+    public string Pseudo { get; private set; } = "";
 
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
-        GameObject textObj = new GameObject("PseudoText");
-        textObj.transform.SetParent(this.transform);
-        textObj.transform.localPosition = new Vector3(0, 1.5f, 0);
-        nameText = textObj.AddComponent<TextMeshPro>();
-        nameText.alignment = TextAlignmentOptions.Center;
-        nameText.fontSize = 8;
-        nameText.color = Color.white;
-        nameText.text = "";
-
         if (!DrivenExternally)
         {
             inputActions = new PongInput();
@@ -169,19 +160,11 @@ public class PongPaddle : MonoBehaviour
 
       float angleDiff = currentAngle - baseAngle;
       transform.rotation = baseRotation * Quaternion.Euler(0, 0, angleDiff);
-
-      if (nameText != null)
-      {
-          nameText.transform.rotation = Quaternion.identity;
-      }
     }
 
     public void SetPseudo(string pseudo)
     {
-        if (nameText != null)
-        {
-            nameText.text = pseudo;
-        }
+        Pseudo = pseudo;
     }
 
     /// <summary>
