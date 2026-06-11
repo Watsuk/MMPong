@@ -128,8 +128,25 @@ namespace MMPong.UI
         /// </summary>
         private void UpdateTeamAvailability(IReadOnlyList<PlayerInfo> players)
         {
-            teamAButton.interactable = true;
-            teamBButton.interactable = true;
+            int max = Session.MatchConfig != null ? Session.MatchConfig.MaxPlayerCount : 4;
+            int cap = (max + 1) / 2; // ceil(max / 2)
+
+            int countA = 0, countB = 0;
+            foreach (var p in players)
+            {
+                if (p.TeamIndex == 1) countB++;
+                else countA++;
+            }
+
+            bool aFull = countA >= cap;
+            bool bFull = countB >= cap;
+
+            teamAButton.interactable = !aFull;
+            teamBButton.interactable = !bFull;
+
+            // Si l'équipe choisie est pleine, on bascule vers l'autre (qui a forcément de la place).
+            if (selectedTeam == 0 && aFull && !bFull) SelectTeam(1);
+            else if (selectedTeam == 1 && bFull && !aFull) SelectTeam(0);
         }
     }
 }

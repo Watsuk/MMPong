@@ -35,9 +35,11 @@ namespace MMPong.UI
         /// <summary>Met à jour la ligne avec l'état d'un joueur.</summary>
         public void Bind(PlayerInfo player)
         {
+            // Le ● repose sur la ligne de base : on le remonte d'un voffset pour le centrer
+            // verticalement sur le pseudo (sinon la pastille paraît décalée vers le bas).
             string dot = player.IsConnected
-                ? "<color=#6CD66C>●</color>"
-                : "<color=#E84B4B>●</color>";
+                ? "<voffset=0.12em><color=#6CD66C>●</color></voffset>"
+                : "<voffset=0.12em><color=#E84B4B>●</color></voffset>";
             string team = player.TeamIndex == 0 ? "Équipe A" : "Équipe B";
             string ready = player.IsReady ? "<color=#6CD66C>Prêt</color>" : "<color=#C8C864>En attente</color>";
             label.text = $"{dot} {player.Pseudo}  —  {team}  —  {ready}";

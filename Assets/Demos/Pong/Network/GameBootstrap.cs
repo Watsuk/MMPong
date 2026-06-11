@@ -209,9 +209,13 @@ namespace MMPong.Network
         const string DotConnected = "#6CD66C";
         const string DotDisconnected = "#E84B4B";
 
-        /// <summary>Pseudo précédé d'une pastille ● colorée selon l'état de connexion (rich text TMP).</summary>
+        /// <summary>
+        /// Pseudo précédé d'une pastille ● colorée selon l'état de connexion (rich text TMP).
+        /// Le ● repose sur la ligne de base : on le remonte d'un <c>voffset</c> pour le centrer
+        /// verticalement sur le pseudo (sinon la pastille paraît décalée vers le bas).
+        /// </summary>
         static string FormatPlayer(LobbyPlayerInfo p)
-            => $"<color={(p.connected ? DotConnected : DotDisconnected)}>●</color> {p.pseudo}";
+            => $"<voffset=0.12em><color={(p.connected ? DotConnected : DotDisconnected)}>●</color></voffset> {p.pseudo}";
 
         /// <summary>
         /// Colore chaque paddle selon la couleur de SON équipe (choisie par le host). Nécessite le
