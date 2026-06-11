@@ -24,8 +24,6 @@ namespace MMPong.Network
         public string pseudo = "player";
         public int teamIndex = 0;   // équipe choisie, envoyée au serveur au JOIN
         public int sendRate = 30;
-        /// <summary>Battements de cœur par seconde (signe de vie best-effort vers le serveur).</summary>
-        public float heartbeatRate = 1f;
         /// <summary>Délai (s) sans aucun paquet du serveur au-delà duquel on considère l'hôte perdu.</summary>
         public float serverTimeout = 3f;
 
@@ -49,9 +47,13 @@ namespace MMPong.Network
 
         /// <summary>
         /// Émis une seule fois quand le serveur (host) ne donne plus signe de vie au-delà de
-        /// <see cref="serverTimeout"/> : l'hôte est considéré déconnecté.
+        /// <see cref="serverTimeout"/> : l'hôte est considéré déconnecté (détection par timeout,
+        /// couvre les pertes brutales : crash, fermeture sans Shutdown).
         /// </summary>
         public event Action OnServerLost;
+
+        /// <summary>Émis quand le serveur signale explicitement une déconnexion/fermeture du salon (message DISCONNECT).</summary>
+        public event Action OnDisconnected;
 
         /// <summary>Identifiant attribué par le serveur, ou -1 tant que le WELCOME n'est pas reçu.</summary>
         public int PlayerId => myId;
@@ -60,9 +62,11 @@ namespace MMPong.Network
         IPEndPoint server;
         int myId = -1;
         float currentDir;
+        float lastSentDir = float.NaN;
+        float heartbeatTimer = 0f;          // cadence du keepalive INPUT (renvoie l'input même inchangé)
+        const float HeartbeatInterval = 1f;
         float sendTimer;
-        float heartbeatTimer;
-        float lastServerPacketTime;
+        float lastServerPacketTime;         // dernier paquet reçu du serveur (détection de perte de l'hôte)
         bool serverLostFired;
         readonly SequenceGate stateGate = new SequenceGate();
         ReliableChannel serverChannel;
@@ -90,6 +94,15 @@ namespace MMPong.Network
         {
             if (myId < 0) return;
             serverChannel.SendReliable(Protocol.BuildReady(myId));
+        }
+
+        /// <summary>Envoie un message de déconnexion au serveur (réseau pur).</summary>
+        public void Disconnect()
+        {
+            if (transport != null && transport.IsOpen && server != null)
+            {
+                transport.Send(Protocol.Encode(Protocol.BuildDisconnect()), server);
+            }
         }
 
         void OnData(byte[] data, IPEndPoint from)
@@ -120,6 +133,10 @@ namespace MMPong.Network
                 case MessageType.Start:
                     OnGameStarted?.Invoke();
                     break;
+                case MessageType.Disconnect:
+                    Debug.Log("[NetworkClient] Reçu DISCONNECT du serveur.");
+                    OnDisconnected?.Invoke();
+                    break;
                 case MessageType.State:
                     GameState s = Protocol.ParseState(m);
                     if (!stateGate.Accept(s.seq)) break;
@@ -135,15 +152,23 @@ namespace MMPong.Network
             // Contrôle réseau unifié : flèches ↑/↓ uniquement, pour TOUS les joueurs (↑ = +1, ↓ = -1).
             currentDir = ReadArrowDirection();
 
+            heartbeatTimer += Time.deltaTime;
+            bool changed = currentDir != lastSentDir;
+            bool heartbeat = heartbeatTimer >= HeartbeatInterval;
+
             float step = 1f / sendRate;
             sendTimer += Time.deltaTime;
             while (sendTimer >= step)
             {
                 sendTimer -= step;
-                SendInput(currentDir);
+                if (changed || heartbeat)
+                {
+                    SendInput(currentDir);
+                    lastSentDir = currentDir;
+                    if (heartbeat) heartbeatTimer = 0f;
+                }
             }
 
-            SendHeartbeatTick();
             CheckServerAlive();
         }
 
@@ -160,19 +185,6 @@ namespace MMPong.Network
                 serverLostFired = true;
                 Debug.LogWarning("[NetworkClient] Hôte injoignable (timeout serveur) → OnServerLost.");
                 OnServerLost?.Invoke();
-            }
-        }
-
-        /// <summary>Émet un battement de cœur à <see cref="heartbeatRate"/> Hz une fois identifié (best-effort).</summary>
-        void SendHeartbeatTick()
-        {
-            if (myId < 0 || heartbeatRate <= 0f) return;
-            float beat = 1f / heartbeatRate;
-            heartbeatTimer += Time.deltaTime;
-            while (heartbeatTimer >= beat)
-            {
-                heartbeatTimer -= beat;
-                transport.Send(Protocol.Encode(Protocol.BuildHeartbeat(myId)), server);
             }
         }
 

@@ -193,7 +193,7 @@ public class PongBall : MonoBehaviour
             if (balleRenderer != null)
             {
                 balleRenderer.material.mainTexture = null;
-                balleRenderer.material.color = Color.white;
+                balleRenderer.material.color = PongPaddle.Palette[colorId];
             }
             if (trail != null)
             {

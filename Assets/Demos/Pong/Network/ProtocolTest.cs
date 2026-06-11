@@ -26,23 +26,31 @@ namespace MMPong.Network
                 winner = 0,
                 ballDir = new Vector2(0.707f, -0.707f),
                 ballSpeed = 5.5f,
-                bonusWinner = 2
+                bonusWinner = 2,
+                hasBonus = true,
+                bonusCircleIndex = 1,
+                bonusAngle = 45.2f
             };
-            var g2 = Protocol.ParseState(Roundtrip(Protocol.BuildState(g)));
+            var msg = Protocol.BuildState(g);
+            var g2 = Protocol.ParseState(Roundtrip(msg));
+            Check("State payload compact", msg.payload.Length <= 32);
             Check("State", g2.seq == 184
-                && Mathf.Approximately(g2.ballPos.x, 2.31f)
-                && Mathf.Approximately(g2.ballPos.y, -0.5f)
+                && Near(g2.ballPos.x, 2.31f, 0.002f)
+                && Near(g2.ballPos.y, -0.5f, 0.002f)
                 && g2.ballOwner == 1
                 && g2.paddleAngle.Length == 2
-                && Mathf.Approximately(g2.paddleAngle[0], 37.5f)
-                && Mathf.Approximately(g2.paddleAngle[1], -128.0f)
+                && Near(g2.paddleAngle[0], 37.5f, 0.01f)
+                && Near(Mathf.DeltaAngle(g2.paddleAngle[1], -128.0f), 0f, 0.01f)
                 && g2.scores[0] == 3 && g2.scores[1] == 1
                 && g2.phase == GamePhase.GameOver
                 && g2.winner == 0
                 && g2.bonusWinner == 2
-                && Mathf.Approximately(g2.ballDir.x, 0.707f)
-                && Mathf.Approximately(g2.ballDir.y, -0.707f)
-                && Mathf.Approximately(g2.ballSpeed, 5.5f));
+                && g2.hasBonus == true
+                && g2.bonusCircleIndex == 1
+                && Near(g2.bonusAngle, 45.2f, 0.01f)
+                && Near(g2.ballDir.x, 0.707f, 0.03f)
+                && Near(g2.ballDir.y, -0.707f, 0.03f)
+                && Near(g2.ballSpeed, 5.5f, 0.02f));
 
             // Join + nettoyage des séparateurs + équipe
             var join = Protocol.ParseJoin(Roundtrip(Protocol.BuildJoin("ali|ce,bob", 1)));
@@ -171,6 +179,8 @@ namespace MMPong.Network
         }
 
         static Message Roundtrip(Message m) => Protocol.Decode(Protocol.Encode(m));
+
+        static bool Near(float a, float b, float tol) => Mathf.Abs(a - b) <= tol;
 
         void Check(string name, bool passed)
         {

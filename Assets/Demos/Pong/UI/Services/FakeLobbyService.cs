@@ -40,6 +40,7 @@ namespace MMPong.UI
         public event Action<IReadOnlyList<PlayerInfo>> PlayersChanged;
         public event Action GameStarted;
         public event Action<JoinResult> JoinResult;
+        public event Action Disconnected;
 
         public IReadOnlyList<PlayerInfo> Players => players;
         public bool IsHost { get; private set; }
@@ -94,6 +95,14 @@ namespace MMPong.UI
                 return;
 
             GameStarted?.Invoke();
+        }
+
+        public void Leave()
+        {
+            StopAllCoroutines();
+            players.Clear();
+            LocalPlayerId = -1;
+            IsHost = false;
         }
 
         // ── Simulation ──────────────────────────────────────────────────────────

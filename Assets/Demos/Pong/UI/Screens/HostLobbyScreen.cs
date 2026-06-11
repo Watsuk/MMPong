@@ -46,6 +46,7 @@ namespace MMPong.UI
         protected override void OnExit()
         {
             Lobby.PlayersChanged -= OnPlayersChanged;
+            Lobby.Leave();
         }
 
         private void OnPlayersChanged(IReadOnlyList<PlayerInfo> players)

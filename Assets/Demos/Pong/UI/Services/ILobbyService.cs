@@ -24,6 +24,9 @@ namespace MMPong.UI
         /// <summary>Émis en réponse à un <see cref="Join"/> (succès avec id, ou rejet).</summary>
         event Action<JoinResult> JoinResult;
 
+        /// <summary>Émis quand la connexion au salon est coupée ou perdue.</summary>
+        event Action Disconnected;
+
         /// <summary>Liste courante des joueurs du salon (snapshot lisible à tout moment).</summary>
         IReadOnlyList<PlayerInfo> Players { get; }
 
@@ -44,5 +47,8 @@ namespace MMPong.UI
 
         /// <summary>Démarre la partie (host uniquement) ; déclenche <see cref="GameStarted"/>.</summary>
         void StartGame();
+
+        /// <summary>Quitte le salon en cours (coupe les connexions réseau / arrête la simulation).</summary>
+        void Leave();
     }
 }

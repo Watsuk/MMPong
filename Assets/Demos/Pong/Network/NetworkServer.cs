@@ -87,18 +87,19 @@ namespace MMPong.Network
             switch (m.type)
             {
                 case MessageType.Join: HandleJoin(m, from); break;
-                case MessageType.Input: HandleInput(m); break;
+                case MessageType.Input: HandleInput(m, from); break;
                 case MessageType.Ready: HandleReady(m); break;
-                case MessageType.Heartbeat: HandleHeartbeat(from); break;
+                case MessageType.Disconnect: HandleDisconnect(from); break;
             }
         }
 
         /// <summary>
-        /// Battement de cœur reçu : on rafraîchit la date du dernier signe de vie du joueur (résolu
-        /// par son endpoint). S'il était marqué déconnecté, il revient « connecté » et on rediffuse
-        /// le lobby pour repasser sa pastille au vert chez les autres.
+        /// Rafraîchit le signe de vie d'un joueur (résolu par son endpoint). S'il était marqué
+        /// déconnecté, il revient « connecté » et on rediffuse le lobby pour repasser sa pastille au
+        /// vert chez les autres. Appelé à chaque INPUT, qui sert de keepalive (renvoyé ≥1×/s par le
+        /// client même quand l'input ne change pas).
         /// </summary>
-        void HandleHeartbeat(IPEndPoint from)
+        void MarkSeen(IPEndPoint from)
         {
             if (!registry.TryFindId(from, out int id) || id < 0 || id >= ClientRegistry.MaxPlayers) return;
 
@@ -179,8 +180,9 @@ namespace MMPong.Network
             hub.BroadcastReliable(registry.Endpoints, Protocol.BuildStart());
         }
 
-        void HandleInput(Message m)
+        void HandleInput(Message m, IPEndPoint from)
         {
+            MarkSeen(from); // l'INPUT régulier tient le joueur « connecté » (liveness des pastilles)
             var (id, dir) = Protocol.ParseInput(m);
             if (id >= 0 && id < ClientRegistry.MaxPlayers)
                 pendingInput[id] = Mathf.Clamp(dir, -1f, 1f);
@@ -198,6 +200,43 @@ namespace MMPong.Network
             bridge?.StartMatch();
             Debug.Log($"[NetworkServer] START ({match.ReadyCount}/{expectedPlayers} prêts).");
             hub.BroadcastReliable(registry.Endpoints, Protocol.BuildStart());
+        }
+
+        void HandleDisconnect(IPEndPoint from)
+        {
+            if (registry != null && registry.TryFindId(from, out int id))
+            {
+                registry.Unregister(from);
+                if (id >= 0 && id < readyById.Length)
+                {
+                    readyById[id] = false;
+                    teamById[id] = 0;
+                }
+
+                if (bridge != null && bridge.paddles != null && id < bridge.paddles.Length && bridge.paddles[id] != null)
+                {
+                    bridge.paddles[id].SetPseudo("");
+                    bridge.paddles[id].SetColorId(-1);
+                }
+
+                Debug.Log($"[NetworkServer] client disconnected id={id} from {from}");
+                BroadcastLobby();
+            }
+        }
+
+        public void Shutdown()
+        {
+            if (transport != null && transport.IsOpen && registry != null)
+            {
+                byte[] disconnectMsg = Protocol.Encode(Protocol.BuildDisconnect());
+                foreach (var ep in registry.Endpoints)
+                {
+                    if (ep != null)
+                    {
+                        transport.Send(disconnectMsg, ep);
+                    }
+                }
+            }
         }
 
         void Update()
@@ -234,9 +273,9 @@ namespace MMPong.Network
         }
 
         /// <summary>
-        /// Marque déconnecté tout joueur enregistré dont le dernier battement de cœur dépasse le
+        /// Marque déconnecté tout joueur enregistré dont le dernier signe de vie (INPUT) dépasse le
         /// timeout, puis rediffuse le lobby une seule fois si au moins un statut a changé (la pastille
-        /// passe au rouge chez les autres). Reconnexion gérée par <see cref="HandleHeartbeat"/>.
+        /// passe au rouge chez les autres). Reconnexion gérée par <see cref="MarkSeen"/>.
         /// </summary>
         void CheckHeartbeats()
         {
@@ -259,6 +298,13 @@ namespace MMPong.Network
             if (!match.Started || bridge == null) return;
             bridge.ApplyInput(pendingInput);
             state = bridge.BuildState(++tickSeq);
+
+            // Tick rate adaptatif
+            if (state.phase != GamePhase.Playing)
+            {
+                int reducedRate = state.phase == GamePhase.GameOver ? 1 : 5;
+                if (tickSeq % (tickRate / reducedRate) != 0) return;
+            }
 
             byte[] bytes = Protocol.Encode(Protocol.BuildState(state));
             foreach (var ep in registry.Endpoints)
