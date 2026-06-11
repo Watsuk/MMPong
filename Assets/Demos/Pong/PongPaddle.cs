@@ -27,6 +27,7 @@ public class PongPaddle : MonoBehaviour
     // Affichage distant (client) : quand true, le paddle ne se déplace pas seul ; sa position
     // vient du serveur via ApplyNetworkAngle. Inerte par défaut → jeu local non affecté.
     public bool RemoteDisplay = false;
+    public int TeamIndex = -1;
 
     /// <summary>Angle courant du paddle sur le cercle (lu par le serveur).</summary>
     public float CurrentAngle => currentAngle;
@@ -84,17 +85,11 @@ public class PongPaddle : MonoBehaviour
             }
         }
 
-        Renderer r = GetComponent<Renderer>();
-        if (r != null) {
-            if ((int)Player % 2 == 1)
-            {
-                r.material.color = Color.blue;
-            }
-            else
-            {
-                r.material.color = Color.red;
-            }
+        if (TeamIndex == -1)
+        {
+            TeamIndex = ((int)Player % 2 == 1) ? 0 : 1;
         }
+        UpdateTeamColor();
 
         if (radius == 0f)
         {
@@ -106,6 +101,21 @@ public class PongPaddle : MonoBehaviour
                 baseAngle = currentAngle;
                 baseRotation = transform.rotation;
                 circleInitialized = true;
+            }
+        }
+    }
+
+    public void UpdateTeamColor()
+    {
+        Renderer r = GetComponent<Renderer>();
+        if (r != null) {
+            if (TeamIndex == 0)
+            {
+                r.material.color = Color.blue;
+            }
+            else if (TeamIndex == 1)
+            {
+                r.material.color = Color.red;
             }
         }
     }

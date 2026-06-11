@@ -114,7 +114,7 @@ namespace MMPong.Network
             // port client laissé éphémère (listenPort = 0) pour cohabiter avec d'autres clients
             // sur la même machine. Le host affiche la simulation réelle (pas de RemoteDisplay ici).
             client.pseudo = string.IsNullOrEmpty(pseudo) ? "host" : pseudo;
-            client.OnLobbyReceived += OnLobbyReceived;
+            client.OnLobbyDetailed += OnLobbyDetailed;
             client.OnConfigReceived += OnConfigReceived;
             client.OnGameStarted += OnGameStarted;
             clientGo.AddComponent<ClientStateLogger>();
@@ -147,7 +147,7 @@ namespace MMPong.Network
             // port client laissé éphémère (listenPort = 0) pour cohabiter sur la même machine.
             client.pseudo = string.IsNullOrEmpty(pseudo) ? "player" : pseudo;
             client.teamIndex = teamIndex;
-            client.OnLobbyReceived += OnLobbyReceived;
+            client.OnLobbyDetailed += OnLobbyDetailed;
             client.OnConfigReceived += OnConfigReceived;
             client.OnGameStarted += OnGameStarted;
             clientGo.AddComponent<ClientStateApplier>();   // applique les STATE reçus à la scène
@@ -174,7 +174,7 @@ namespace MMPong.Network
             if (score != null) score.SetTeamNames(settings.teamAName, settings.teamBName);
         }
 
-        void OnLobbyReceived(string[] pseudos)
+        void OnLobbyDetailed(LobbyPlayerInfo[] playersInfo)
         {
             int localId = -1;
             NetworkClient client = FindFirstObjectByType<NetworkClient>();
@@ -184,11 +184,13 @@ namespace MMPong.Network
                 .OrderBy(p => (int)p.Player)
                 .ToArray();
                 
-            for (int i = 0; i < paddles.Length && i < pseudos.Length; i++)
+            for (int i = 0; i < paddles.Length && i < playersInfo.Length; i++)
             {
                 if (paddles[i] != null)
                 {
-                    paddles[i].SetPseudo(pseudos[i]);
+                    paddles[i].SetPseudo(playersInfo[i].pseudo);
+                    paddles[i].TeamIndex = playersInfo[i].team;
+                    paddles[i].UpdateTeamColor();
                     if (i == localId) {
                         paddles[i].SetAsLocalPlayer();
                     }
