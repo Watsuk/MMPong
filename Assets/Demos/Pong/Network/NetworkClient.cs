@@ -45,6 +45,9 @@ namespace MMPong.Network
         /// <summary>Émis à la réception du START : la partie démarre (point de couture UI/jeu).</summary>
         public event Action OnGameStarted;
 
+        /// <summary>Émis à la réception du END : la partie se termine avec l'id du gagnant.</summary>
+        public event Action<int> OnGameEnded;
+
         /// <summary>
         /// Émis une seule fois quand le serveur (host) ne donne plus signe de vie au-delà de
         /// <see cref="serverTimeout"/> : l'hôte est considéré déconnecté (détection par timeout,
@@ -139,6 +142,11 @@ namespace MMPong.Network
                     break;
                 case MessageType.Start:
                     OnGameStarted?.Invoke();
+                    break;
+                case MessageType.End:
+                    int winnerId = Protocol.ParseEnd(m);
+                    Debug.Log($"[NetworkClient] Reçu END gagnant={winnerId}");
+                    OnGameEnded?.Invoke(winnerId);
                     break;
                 case MessageType.Disconnect:
                     Debug.Log("[NetworkClient] Reçu DISCONNECT du serveur.");

@@ -67,6 +67,7 @@ public class PongWinUI : MonoBehaviour
         {
             networkClient.OnStateReceived -= OnNetworkState;
             networkClient.OnGameStarted -= OnGameStarted;
+            networkClient.OnGameEnded -= OnGameEnded;
         }
     }
 
@@ -83,6 +84,7 @@ public class PongWinUI : MonoBehaviour
                 networkClient = client;
                 networkClient.OnStateReceived += OnNetworkState;
                 networkClient.OnGameStarted += OnGameStarted;
+                networkClient.OnGameEnded += OnGameEnded;
                 break;
             }
         }
@@ -265,13 +267,37 @@ public class PongWinUI : MonoBehaviour
             for (int i = 0; i < s.scores.Length; i++)
                 lastNetworkScores[i] = s.scores[i];
         }
+
+        // Si on reçoit un état de jeu actif et que l'écran de fin est affiché, on le masque immédiatement.
+        // Cela sert de sécurité si un paquet d'état de GameOver tardif s'est glissé après le Start.
+        if (s.phase != GamePhase.GameOver && isShowing)
+        {
+            HideWinScreen();
+        }
     }
 
     void OnGameStarted()
     {
+        HideWinScreen();
+        lastNetworkPhase = GamePhase.WaitingForServe; // Reset network phase to prevent immediate re-trigger of win screen
+        if (ball != null)
+        {
+            ball.scoreLeft = 0;
+            ball.scoreRight = 0;
+        }
+    }
+
+    void OnGameEnded(int winnerId)
+    {
+        lastNetworkPhase = GamePhase.GameOver;
+        lastNetworkWinner = winnerId;
+        ShowWinScreen(winnerId, lastNetworkScores);
+    }
+
+    void HideWinScreen()
+    {
         isShowing = false;
         Panel.SetActive(false);
-        lastNetworkPhase = GamePhase.WaitingForServe; // Reset network phase to prevent immediate re-trigger of win screen
         
         // Remet le bouton dans son état initial si on l'a modifié
         Button existingBtn = Panel.GetComponentInChildren<Button>(true);

@@ -253,6 +253,7 @@ public class PongBall : MonoBehaviour
         PongPaddle paddle = c.collider.GetComponent<PongPaddle>();
         if (paddle != null)
         {
+            if (RemoteDisplay) return; // Le client ne gère pas la physique des paddles ni l'owner
             hasTouched = true;
             lastTouchedPlayer = paddle.Player;
             lastTouchedTeam = paddle.TeamIndex != -1 ? paddle.TeamIndex : (((int)paddle.Player % 2 == 1) ? 0 : 1);
@@ -267,6 +268,8 @@ public class PongBall : MonoBehaviour
             // Son de rebond sur le mur extérieur (joué systématiquement, avant la logique de score)
             if (wallBounceClip != null && audioSource != null)
                 audioSource.PlayOneShot(wallBounceClip, 0.5f);
+
+            if (RemoteDisplay) return; // Le client ne gère ni les scores ni le reset de la balle localement
 
             if (hasTouched)
             {
