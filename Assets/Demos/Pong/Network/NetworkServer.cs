@@ -14,7 +14,7 @@ namespace MMPong.Network
     public class NetworkServer : MonoBehaviour
     {
         public int listenPort = 25000;
-        public int tickRate = 30;
+        public int tickRate = 60;
         public int expectedPlayers = 2;
 
         /// <summary>Délai (s) sans battement de cœur au-delà duquel un joueur est marqué déconnecté.</summary>

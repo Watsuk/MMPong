@@ -23,7 +23,7 @@ namespace MMPong.Network
         public int listenPort = 0;
         public string pseudo = "player";
         public int teamIndex = 0;   // équipe choisie, envoyée au serveur au JOIN
-        public int sendRate = 30;
+        public int sendRate = 60;
         /// <summary>Délai (s) sans aucun paquet du serveur au-delà duquel on considère l'hôte perdu.</summary>
         public float serverTimeout = 3f;
 
