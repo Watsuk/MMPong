@@ -200,6 +200,12 @@ public class PongPaddle : MonoBehaviour
         isLocalPlayerSet = true;
         RemoteDisplay = false;
 
+        // Prédiction client : le paddle local se déplace tout de suite à partir de ExternalDirection
+        // (alimentée par ClientStateApplier avec l'input réseau), et non depuis l'InputAction clavier.
+        // Indispensable pour les joueurs 3-6 qui n'ont aucune InputAction dédiée (sinon : zéro
+        // prédiction → tout le lag d'un aller-retour serveur).
+        DrivenExternally = true;
+
         GameObject outline = new GameObject("Outline");
         outline.transform.SetParent(this.transform);
         outline.transform.localPosition = new Vector3(0, 0, 0.5f);

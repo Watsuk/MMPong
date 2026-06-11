@@ -58,6 +58,13 @@ namespace MMPong.Network
         /// <summary>Identifiant attribué par le serveur, ou -1 tant que le WELCOME n'est pas reçu.</summary>
         public int PlayerId => myId;
 
+        /// <summary>
+        /// Dernière direction d'input lue localement (−1/0/+1). Source unique partagée avec la
+        /// prédiction du paddle local (<see cref="ClientStateApplier"/>) : le paddle prédit avec
+        /// exactement l'input envoyé au serveur, donc sans divergence prédiction/serveur.
+        /// </summary>
+        public float CurrentDirection => currentDir;
+
         UdpTransport transport;
         IPEndPoint server;
         int myId = -1;

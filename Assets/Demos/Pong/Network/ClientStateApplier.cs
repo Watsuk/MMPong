@@ -116,6 +116,19 @@ namespace MMPong.Network
         void FreezeBall() => connectionLost = true;
 
         /// <summary>
+        /// Alimente le paddle local avec la direction d'input courante (la même que celle envoyée
+        /// au serveur). Le paddle, passé en <c>DrivenExternally</c> par <see cref="PongPaddle.SetAsLocalPlayer"/>,
+        /// se déplace alors immédiatement dans <c>PongPaddle.Update()</c> → prédiction client sans
+        /// aller-retour serveur. Fonctionne pour tous les joueurs, y compris 3-6 (pas d'InputAction dédiée).
+        /// </summary>
+        void FeedLocalPaddlePrediction()
+        {
+            int localId = client.PlayerId;
+            if (localId >= 0 && localId < paddles.Length && paddles[localId] != null)
+                paddles[localId].ExternalDirection = client.CurrentDirection;
+        }
+
+        /// <summary>
         /// Callback réseau : décale l'état cible vers le précédent et stocke le nouveau
         /// snapshot avec son horodatage. Les valeurs discrètes (couleur de la balle,
         /// état du bonus) sont appliquées immédiatement car elles ne se prêtent pas
@@ -180,6 +193,10 @@ namespace MMPong.Network
             // Hôte perdu : plus aucun état n'arrive → on fige tout sur place (sinon la prédiction
             // continuerait d'extrapoler la balle hors du cercle).
             if (connectionLost) return;
+
+            // Prédiction du paddle local : alimentée avant les retours anticipés ci-dessous pour
+            // rester réactive dès le premier snapshot.
+            FeedLocalPaddlePrediction();
 
             // Premier snapshot : pas encore de paire → on applique directement
             if (!hasPrevious)
