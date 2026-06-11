@@ -56,7 +56,7 @@ public class PongBall : MonoBehaviour
 
     /// <summary>Dernier joueur ayant touché la balle (0 = Left, 1 = Right, -1 = aucun). Lu par le serveur.</summary>
     public int LastHitter => hasTouched
-        ? ((int)lastTouchedPlayer - 1)
+        ? lastTouchedTeam
         : -1;
 
     void Start() {
@@ -130,6 +130,7 @@ public class PongBall : MonoBehaviour
     }
 
     private PongPlayer lastTouchedPlayer;
+    private int lastTouchedTeam = -1;
     private bool hasTouched = false;
 
     public void SetStateToMenu() {
@@ -140,15 +141,34 @@ public class PongBall : MonoBehaviour
         _State = PongBallState.Playing;
     }
 
-    /// <summary>Met à jour l'état visuel (texture et couleur de la traînée) selon le dernier joueur ayant touché la balle.</summary>
-    public void ApplyVisualState(int ownerId)
+    /// <summary>Met à jour l'état visuel (texture et couleur de la traînée) selon la couleur de l'équipe (0 = Left/Bleu, 1 = Right/Rouge, -1 = aucun).</summary>
+    public void ApplyVisualState(int team)
     {
         if (balleRenderer == null)
             balleRenderer = GetComponent<Renderer>();
         if (trail == null)
             trail = GetComponent<TrailRenderer>();
 
-        if (ownerId == 0) // Left Player (Water)
+        int colorId = -1;
+        if (team >= 0)
+        {
+            PongPaddle[] paddles = FindObjectsByType<PongPaddle>();
+            foreach (var p in paddles)
+            {
+                if (p != null && p.TeamIndex == team)
+                {
+                    colorId = p.ColorId;
+                    break;
+                }
+            }
+
+            if (colorId == -1)
+            {
+                colorId = team;
+            }
+        }
+
+        if (colorId == 0) // Blue / Water
         {
             if (waterTexture != null) balleRenderer.material.mainTexture = waterTexture;
             if (balleRenderer != null) balleRenderer.material.color = Color.white;
@@ -158,7 +178,7 @@ public class PongBall : MonoBehaviour
                 trail.endColor = new Color(0f, 0.7f, 1f, 0f);
             }
         }
-        else if (ownerId == 1) // Right Player (Fire)
+        else if (colorId == 1) // Red / Fire
         {
             if (fireTexture != null) balleRenderer.material.mainTexture = fireTexture;
             if (balleRenderer != null) balleRenderer.material.color = Color.white;
@@ -166,6 +186,20 @@ public class PongBall : MonoBehaviour
             {
                 trail.startColor = new Color(1f, 0.3f, 0f); // Un bel orange/rouge feu
                 trail.endColor = new Color(1f, 0.3f, 0f, 0f);
+            }
+        }
+        else if (colorId >= 2 && colorId < PongPaddle.Palette.Length) // Autre couleur de la palette
+        {
+            if (balleRenderer != null)
+            {
+                balleRenderer.material.mainTexture = null;
+                balleRenderer.material.color = Color.white;
+            }
+            if (trail != null)
+            {
+                Color c = PongPaddle.Palette[colorId];
+                trail.startColor = c;
+                trail.endColor = new Color(c.r, c.g, c.b, 0f);
             }
         }
         else // Aucun (-1)
@@ -221,8 +255,8 @@ public class PongBall : MonoBehaviour
         {
             hasTouched = true;
             lastTouchedPlayer = paddle.Player;
-            int ownerId = ((int)paddle.Player % 2 == 1) ? 0 : 1;
-            ApplyVisualState(ownerId);
+            lastTouchedTeam = paddle.TeamIndex != -1 ? paddle.TeamIndex : (((int)paddle.Player % 2 == 1) ? 0 : 1);
+            ApplyVisualState(lastTouchedTeam);
             Direction = Vector3.Reflect(Direction, c.contacts[0].normal).normalized;
             Speed += 0.5f;
             return;
@@ -236,7 +270,23 @@ public class PongBall : MonoBehaviour
 
             if (hasTouched)
             {
-                if ((int)lastTouchedPlayer % 2 == 1)
+                int teamIndex = -1;
+                PongPaddle[] allPaddles = FindObjectsByType<PongPaddle>();
+                foreach (var p in allPaddles)
+                {
+                    if (p != null && p.Player == lastTouchedPlayer)
+                    {
+                        teamIndex = p.TeamIndex;
+                        break;
+                    }
+                }
+
+                if (teamIndex == -1)
+                {
+                    teamIndex = ((int)lastTouchedPlayer % 2 == 1) ? 0 : 1;
+                }
+
+                if (teamIndex == 0)
                 {                // Left (Blue / Water)
                     scoreLeft++;
                     if (scoreDisplay != null) scoreDisplay.MarquerPointGauche();

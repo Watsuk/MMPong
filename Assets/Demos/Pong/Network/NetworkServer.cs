@@ -101,6 +101,16 @@ namespace MMPong.Network
                 if (id < teamById.Length) teamById[id] = AssignTeam(id, team);
             }
 
+            if (id >= 0 && id < teamById.Length)
+            {
+                if (bridge != null && bridge.paddles != null && id < bridge.paddles.Length && bridge.paddles[id] != null)
+                {
+                    bridge.paddles[id].TeamIndex = teamById[id];
+                    int colorId = teamById[id] == 0 ? settings.teamASkin : settings.teamBSkin;
+                    bridge.paddles[id].SetColorId(colorId);
+                }
+            }
+
             hub.SendReliable(from, Protocol.BuildWelcome(id));
             hub.SendReliable(from, Protocol.BuildConfig(settings)); // le client reçoit la config du salon
             Debug.Log($"[NetworkServer] client joined id={id} pseudo={pseudo} team={teamById[id]} from {from}");
@@ -115,22 +125,7 @@ namespace MMPong.Network
         /// </summary>
         int AssignTeam(int newId, int requested)
         {
-            requested = requested == 1 ? 1 : 0;
-            int cap = (expectedPlayers + 1) / 2;
-
-            int countA = 0, countB = 0;
-            foreach (int otherId in registry.Ids)
-            {
-                if (otherId == newId) continue;
-                if (teamById[otherId] == 0) countA++; else countB++;
-            }
-
-            int reqCount = requested == 0 ? countA : countB;
-            if (reqCount < cap) return requested;
-
-            int other = requested == 0 ? 1 : 0;
-            int otherCount = other == 0 ? countA : countB;
-            return otherCount < cap ? other : requested; // les deux pleins : repli (ne devrait pas arriver)
+            return requested == 1 ? 1 : 0;
         }
 
         void BroadcastLobby()
