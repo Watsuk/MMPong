@@ -2513,6 +2513,7 @@ MonoBehaviour:
   pseudo: player
   teamIndex: 0
   sendRate: 30
+  serverTimeout: 3
 --- !u!114 &1015289711
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3122,7 +3123,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: c22777d6e868e4f2fb421913386b154e, type: 2}
+  - {fileID: 2100000, guid: 85689533d8e3f18408b168e98b08f8b1, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
